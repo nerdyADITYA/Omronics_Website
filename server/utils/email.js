@@ -11,15 +11,18 @@ function getTransporter() {
     console.log(`\n======================================================`);
     console.log(`[SMTP STEP 1] Initializing Nodemailer Transporter`);
     console.log(`   - EMAIL_HOST: "${process.env.EMAIL_HOST || 'smtp.gmail.com'}"`);
-    console.log(`   - EMAIL_PORT: "${process.env.EMAIL_PORT || '587'}"`);
+    console.log(`   - EMAIL_PORT: "${process.env.EMAIL_PORT || '465'}"`);
     console.log(`   - EMAIL_USERNAME: "${process.env.EMAIL_USERNAME || 'NOT_SET'}"`);
-    console.log(`   - EMAIL_PASSWORD: "${process.env.EMAIL_PASSWORD ? '****** (Set)' : 'NOT_SET'}"`);
-    console.log(`   - Mode: ${isGmail ? 'Gmail Native Service (Port 465 SSL)' : 'Custom SMTP'}`);
+    console.log(`   - Mode: ${isGmail ? 'Gmail Native Service (Port 465 SSL + IPv4 Forced)' : 'Custom SMTP'}`);
     console.log(`======================================================\n`);
 
     if (isGmail) {
       transporter = nodemailer.createTransport({
         service: 'gmail',
+        family: 4, // Force IPv4 to prevent IPv6 DNS routing timeouts on Render
+        connectionTimeout: 10000, // 10s connection timeout
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
         auth: {
           user: process.env.EMAIL_USERNAME,
           pass: process.env.EMAIL_PASSWORD,
@@ -28,8 +31,12 @@ function getTransporter() {
     } else {
       transporter = nodemailer.createTransport({
         host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.EMAIL_PORT || '587', 10),
-        secure: process.env.EMAIL_PORT === '465',
+        port: parseInt(process.env.EMAIL_PORT || '465', 10),
+        secure: true,
+        family: 4, // Force IPv4
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
         auth: {
           user: process.env.EMAIL_USERNAME,
           pass: process.env.EMAIL_PASSWORD,
@@ -76,8 +83,12 @@ export async function sendEnquiryNotification(enquiry) {
   const transporterInstance = getTransporter();
   const fromHeader = `"Omronics Industrial Automation" <${username}>`;
 
-  // Verify connection first
-  await verifySmtpConnection();
+  // Verify connection first with timeout safety
+  const verifyRes = await verifySmtpConnection();
+  if (!verifyRes.success) {
+    console.error(`[SMTP CANCELLED] Skipping sendMail because connection verification failed: ${verifyRes.error}`);
+    return { success: false, error: verifyRes.error };
+  }
 
   const results = { customer: null, admin: null };
 
@@ -114,13 +125,10 @@ export async function sendEnquiryNotification(enquiry) {
       const info = await transporterInstance.sendMail(customerMailOptions);
       console.log(`[SMTP STEP 4 SUCCESS] ✅ Customer Email Dispatched!`);
       console.log(`   - MessageId: ${info.messageId}`);
-      console.log(`   - Accepted: ${JSON.stringify(info.accepted)}`);
-      console.log(`   - Rejected: ${JSON.stringify(info.rejected)}`);
       console.log(`   - Response: ${info.response}`);
       results.customer = { success: true, messageId: info.messageId, response: info.response };
     } catch (err) {
       console.error(`[SMTP STEP 4 ERROR] ❌ Customer Email Failed:`, err.message || err);
-      console.error(err);
       results.customer = { success: false, error: err.message || String(err) };
     }
   }
@@ -152,13 +160,10 @@ export async function sendEnquiryNotification(enquiry) {
     const info = await transporterInstance.sendMail(adminMailOptions);
     console.log(`[SMTP STEP 6 SUCCESS] ✅ Admin Email Dispatched!`);
     console.log(`   - MessageId: ${info.messageId}`);
-    console.log(`   - Accepted: ${JSON.stringify(info.accepted)}`);
-    console.log(`   - Rejected: ${JSON.stringify(info.rejected)}`);
     console.log(`   - Response: ${info.response}`);
     results.admin = { success: true, messageId: info.messageId, response: info.response };
   } catch (err) {
     console.error(`[SMTP STEP 6 ERROR] ❌ Admin Email Failed:`, err.message || err);
-    console.error(err);
     results.admin = { success: false, error: err.message || String(err) };
   }
 
