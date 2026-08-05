@@ -3,7 +3,7 @@ import { AppError } from '../middlewares/error.middleware.js';
 
 export class UploadService {
   /**
-   * Process and save single image
+   * Process and save single image into Base64 Data URI
    * @param {object} file - Express multer file
    * @param {string} folder - Subfolder name
    */
@@ -11,15 +11,20 @@ export class UploadService {
     if (!file || !file.buffer) {
       throw new AppError('No image file provided.', 400);
     }
-    const relativeUrl = await processAndSaveImage(file.buffer, folder);
-    return {
-      url: relativeUrl,
-      filename: file.originalname,
-    };
+    try {
+      const dataUriUrl = await processAndSaveImage(file.buffer, folder);
+      return {
+        url: dataUriUrl,
+        filename: file.originalname,
+      };
+    } catch (err) {
+      console.error('Single image processing error:', err);
+      throw new AppError(`Failed to process image: ${err.message}`, 400);
+    }
   }
 
   /**
-   * Process and save multiple images
+   * Process and save multiple images into Base64 Data URIs
    * @param {object[]} files - Array of Express multer files
    * @param {string} folder - Subfolder name
    */
@@ -30,11 +35,19 @@ export class UploadService {
 
     const results = [];
     for (const file of files) {
-      const relativeUrl = await processAndSaveImage(file.buffer, folder);
-      results.push({
-        url: relativeUrl,
-        filename: file.originalname,
-      });
+      try {
+        const dataUriUrl = await processAndSaveImage(file.buffer, folder);
+        results.push({
+          url: dataUriUrl,
+          filename: file.originalname,
+        });
+      } catch (err) {
+        console.error('Multi image item processing error:', err);
+      }
+    }
+
+    if (results.length === 0) {
+      throw new AppError('Failed to process uploaded images.', 400);
     }
 
     return results;
@@ -46,10 +59,12 @@ export class UploadService {
    */
   async uploadSingleDocument(file) {
     if (!file) {
-      throw new AppError('No PDF document file provided.', 400);
+      throw new AppError('No document file provided.', 400);
     }
+
+    const relativeUrl = `/uploads/documents/${file.filename}`;
     return {
-      url: `/uploads/documents/${file.filename}`,
+      url: relativeUrl,
       filename: file.originalname,
     };
   }
