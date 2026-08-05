@@ -1,5 +1,4 @@
 import nodemailer from 'nodemailer';
-import { logger } from './logger.js';
 
 let transporter = null;
 
@@ -9,8 +8,16 @@ function getTransporter() {
       (process.env.EMAIL_HOST || '').toLowerCase().includes('gmail') ||
       (process.env.EMAIL_USERNAME || '').toLowerCase().includes('gmail');
 
+    console.log(`\n======================================================`);
+    console.log(`[SMTP STEP 1] Initializing Nodemailer Transporter`);
+    console.log(`   - EMAIL_HOST: "${process.env.EMAIL_HOST || 'smtp.gmail.com'}"`);
+    console.log(`   - EMAIL_PORT: "${process.env.EMAIL_PORT || '587'}"`);
+    console.log(`   - EMAIL_USERNAME: "${process.env.EMAIL_USERNAME || 'NOT_SET'}"`);
+    console.log(`   - EMAIL_PASSWORD: "${process.env.EMAIL_PASSWORD ? '****** (Set)' : 'NOT_SET'}"`);
+    console.log(`   - Mode: ${isGmail ? 'Gmail Native Service (Port 465 SSL)' : 'Custom SMTP'}`);
+    console.log(`======================================================\n`);
+
     if (isGmail) {
-      console.log('📧 Initializing Nodemailer with Gmail Service Mode (Port 465 SSL) for:', process.env.EMAIL_USERNAME);
       transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
@@ -19,7 +26,6 @@ function getTransporter() {
         },
       });
     } else {
-      console.log('📧 Initializing Nodemailer with Custom SMTP Mode for:', process.env.EMAIL_USERNAME);
       transporter = nodemailer.createTransport({
         host: process.env.EMAIL_HOST || 'smtp.gmail.com',
         port: parseInt(process.env.EMAIL_PORT || '587', 10),
@@ -35,6 +41,22 @@ function getTransporter() {
 }
 
 /**
+ * Actively verify SMTP connection
+ */
+export async function verifySmtpConnection() {
+  try {
+    console.log(`[SMTP STEP 2] Verifying Transporter Connection with SMTP Server...`);
+    const t = getTransporter();
+    await t.verify();
+    console.log(`[SMTP STEP 2 SUCCESS] ✅ Transporter connection verified and ready!`);
+    return { success: true, message: 'SMTP Transporter verified successfully.' };
+  } catch (err) {
+    console.error(`[SMTP STEP 2 ERROR] ❌ SMTP Verification Failed:`, err.message || err);
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
+/**
  * Send email notification for new customer enquiry
  * Sends both Admin Alert & Customer Confirmation Receipt
  * @param {object} enquiry - Enquiry data object
@@ -43,20 +65,29 @@ export async function sendEnquiryNotification(enquiry) {
   const username = process.env.EMAIL_USERNAME;
   const password = process.env.EMAIL_PASSWORD;
 
+  console.log(`\n------------------------------------------------------`);
+  console.log(`[SMTP DISPATCH START] Processing Enquiry #${enquiry.id || 'N/A'} for "${enquiry.customer_name}" (${enquiry.email})`);
+
   if (!username || !password) {
-    console.warn('⚠️ SMTP Warning: EMAIL_USERNAME or EMAIL_PASSWORD environment variable is missing. Skipping email dispatch.');
-    return;
+    console.warn(`[SMTP WARN] ⚠️ Missing EMAIL_USERNAME or EMAIL_PASSWORD. Skipping email dispatch.`);
+    return { success: false, reason: 'Credentials missing' };
   }
 
   const transporterInstance = getTransporter();
   const fromHeader = `"Omronics Industrial Automation" <${username}>`;
 
-  // 1. Send Customer Confirmation Copy (to the user who submitted the form)
+  // Verify connection first
+  await verifySmtpConnection();
+
+  const results = { customer: null, admin: null };
+
+  // 1. Send Customer Confirmation Copy
   if (enquiry.email) {
+    console.log(`[SMTP STEP 3] Preparing Customer Confirmation Email to: "${enquiry.email}"`);
     const customerMailOptions = {
       from: fromHeader,
       to: enquiry.email,
-      subject: `Thank you for contacting Omronics - [Enquiry #${enquiry.id}]`,
+      subject: `Thank you for contacting Omronics - [Enquiry #${enquiry.id || 'N/A'}]`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
           <div style="background-color: #0b1329; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
@@ -79,14 +110,23 @@ export async function sendEnquiryNotification(enquiry) {
     };
 
     try {
-      const customerInfo = await transporterInstance.sendMail(customerMailOptions);
-      console.log(`✅ Customer confirmation email dispatched to ${enquiry.email}: ${customerInfo.messageId}`);
+      console.log(`[SMTP STEP 4] Sending Customer Email via Nodemailer...`);
+      const info = await transporterInstance.sendMail(customerMailOptions);
+      console.log(`[SMTP STEP 4 SUCCESS] ✅ Customer Email Dispatched!`);
+      console.log(`   - MessageId: ${info.messageId}`);
+      console.log(`   - Accepted: ${JSON.stringify(info.accepted)}`);
+      console.log(`   - Rejected: ${JSON.stringify(info.rejected)}`);
+      console.log(`   - Response: ${info.response}`);
+      results.customer = { success: true, messageId: info.messageId, response: info.response };
     } catch (err) {
-      console.error(`❌ Failed to send customer confirmation email to ${enquiry.email}:`, err.message || err);
+      console.error(`[SMTP STEP 4 ERROR] ❌ Customer Email Failed:`, err.message || err);
+      console.error(err);
+      results.customer = { success: false, error: err.message || String(err) };
     }
   }
 
-  // 2. Send Admin Alert Copy (to admin inbox)
+  // 2. Send Admin Alert Copy
+  console.log(`[SMTP STEP 5] Preparing Admin Lead Notification Email to: "${username}"`);
   const adminMailOptions = {
     from: fromHeader,
     to: username,
@@ -108,9 +148,45 @@ export async function sendEnquiryNotification(enquiry) {
   };
 
   try {
-    const adminInfo = await transporterInstance.sendMail(adminMailOptions);
-    console.log(`✅ Admin notification email sent to ${username}: ${adminInfo.messageId}`);
+    console.log(`[SMTP STEP 6] Sending Admin Email via Nodemailer...`);
+    const info = await transporterInstance.sendMail(adminMailOptions);
+    console.log(`[SMTP STEP 6 SUCCESS] ✅ Admin Email Dispatched!`);
+    console.log(`   - MessageId: ${info.messageId}`);
+    console.log(`   - Accepted: ${JSON.stringify(info.accepted)}`);
+    console.log(`   - Rejected: ${JSON.stringify(info.rejected)}`);
+    console.log(`   - Response: ${info.response}`);
+    results.admin = { success: true, messageId: info.messageId, response: info.response };
   } catch (err) {
-    console.error(`❌ Failed to send admin notification email to ${username}:`, err.message || err);
+    console.error(`[SMTP STEP 6 ERROR] ❌ Admin Email Failed:`, err.message || err);
+    console.error(err);
+    results.admin = { success: false, error: err.message || String(err) };
   }
+
+  console.log(`[SMTP DISPATCH COMPLETE] Finished processing Enquiry #${enquiry.id || 'N/A'}\n------------------------------------------------------\n`);
+  return results;
+}
+
+/**
+ * Diagnostic test email trigger
+ */
+export async function testDiagnosticEmail(toEmail) {
+  const verifyRes = await verifySmtpConnection();
+  if (!verifyRes.success) {
+    return { success: false, verify: verifyRes };
+  }
+
+  const testEnquiry = {
+    id: 999,
+    source_type: 'DIAGNOSTIC_TEST',
+    customer_name: 'Omronics Diagnostic System',
+    email: toEmail || process.env.EMAIL_USERNAME,
+    requirement: 'This is a live diagnostic email sent from the Omronics backend server.',
+  };
+
+  const dispatchResults = await sendEnquiryNotification(testEnquiry);
+  return {
+    success: true,
+    verify: verifyRes,
+    dispatch: dispatchResults,
+  };
 }

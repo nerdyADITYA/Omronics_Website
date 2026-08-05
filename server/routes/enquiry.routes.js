@@ -5,8 +5,9 @@ import { validateEnquiry } from '../validators/enquiry.validator.js';
 
 const router = Router();
 
-// Public Route (Lead capture)
+// Public Routes (Lead capture & Diagnostic test)
 router.post('/', validateEnquiry, enquiryController.create);
+router.get('/test-email', enquiryController.testEmail);
 
 // Protected Admin Routes
 router.get('/', verifyToken, enquiryController.getAll);

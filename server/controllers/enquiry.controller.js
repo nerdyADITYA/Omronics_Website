@@ -1,4 +1,5 @@
 import enquiryService from '../services/enquiry.service.js';
+import { testDiagnosticEmail } from '../utils/email.js';
 import { getPagination } from '../utils/pagination.js';
 import { sendPaginated, sendSuccess } from '../utils/response.js';
 
@@ -62,6 +63,16 @@ export class EnquiryController {
     try {
       const stats = await enquiryService.getStats();
       return sendSuccess(res, stats, 'Enquiry statistics retrieved.');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async testEmail(req, res, next) {
+    try {
+      const toEmail = req.query.to || process.env.EMAIL_USERNAME;
+      const result = await testDiagnosticEmail(toEmail);
+      return sendSuccess(res, result, 'Email diagnostic test executed.');
     } catch (err) {
       next(err);
     }
