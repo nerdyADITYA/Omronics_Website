@@ -5,6 +5,7 @@ let transporter = null;
 
 function getTransporter() {
   if (!transporter) {
+    console.log('📧 Creating Nodemailer SMTP Transporter for:', process.env.EMAIL_USERNAME);
     transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.EMAIL_PORT || '587', 10),
@@ -24,18 +25,22 @@ function getTransporter() {
  * @param {object} enquiry - Enquiry data object
  */
 export async function sendEnquiryNotification(enquiry) {
-  if (!process.env.EMAIL_USERNAME || !process.env.EMAIL_PASSWORD) {
-    logger.warn('SMTP credentials not configured. Skipping email notification dispatch.');
+  const username = process.env.EMAIL_USERNAME;
+  const password = process.env.EMAIL_PASSWORD;
+
+  if (!username || !password) {
+    console.warn('⚠️ SMTP Warning: EMAIL_USERNAME or EMAIL_PASSWORD environment variable is missing on Render. Skipping email dispatch.');
     return;
   }
 
   const transporterInstance = getTransporter();
-  const fromEmail = process.env.EMAIL_FROM || `"Omronics Industrial Automation" <${process.env.EMAIL_USERNAME}>`;
+  // For Gmail SMTP, from header MUST match authenticated account (e.g. adikadia05@gmail.com)
+  const fromHeader = `"Omronics Industrial Automation" <${username}>`;
 
   // 1. Send Customer Confirmation Copy (to the user who submitted the form)
   if (enquiry.email) {
     const customerMailOptions = {
-      from: fromEmail,
+      from: fromHeader,
       to: enquiry.email,
       subject: `Thank you for contacting Omronics - [Enquiry #${enquiry.id}]`,
       html: `
@@ -47,7 +52,7 @@ export async function sendEnquiryNotification(enquiry) {
             <h2 style="color: #0f172a; margin-top: 0;">Enquiry Received</h2>
             <p>Dear <strong>${enquiry.customer_name}</strong>,</p>
             <p>Thank you for reaching out to Omronics Automation. We have received your technical requirement and an application engineer will review your specs and respond within 24 business hours.</p>
-            <div style="background-color: #f8fafc; border-left: 4px solid #0066cc; p-4; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
+            <div style="background-color: #f8fafc; border-left: 4px solid #0066cc; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
               <p style="margin: 0 0 8px 0; font-weight: bold; color: #1e293b;">Submitted Requirement Details:</p>
               <p style="margin: 0; color: #475569;">${enquiry.requirement}</p>
             </div>
@@ -61,16 +66,16 @@ export async function sendEnquiryNotification(enquiry) {
 
     try {
       const customerInfo = await transporterInstance.sendMail(customerMailOptions);
-      logger.info(`Customer confirmation email dispatched to ${enquiry.email}: ${customerInfo.messageId}`);
+      console.log(`✅ Customer confirmation email dispatched to ${enquiry.email}: ${customerInfo.messageId}`);
     } catch (err) {
-      logger.error(`Failed to send customer confirmation email to ${enquiry.email}:`, err.message);
+      console.error(`❌ Failed to send customer confirmation email to ${enquiry.email}:`, err.message || err);
     }
   }
 
-  // 2. Send Admin Alert Copy (to admin/company inbox)
+  // 2. Send Admin Alert Copy (to admin inbox)
   const adminMailOptions = {
-    from: fromEmail,
-    to: process.env.EMAIL_USERNAME,
+    from: fromHeader,
+    to: username,
     subject: `🚨 New Lead Enquiry [${enquiry.source_type}]: ${enquiry.subject || 'Website Enquiry'}`,
     html: `
       <h2>New Customer Enquiry Received</h2>
@@ -90,8 +95,8 @@ export async function sendEnquiryNotification(enquiry) {
 
   try {
     const adminInfo = await transporterInstance.sendMail(adminMailOptions);
-    logger.info(`Admin notification email sent: ${adminInfo.messageId}`);
+    console.log(`✅ Admin notification email sent to ${username}: ${adminInfo.messageId}`);
   } catch (err) {
-    logger.error('Failed to send admin notification email:', err.message);
+    console.error(`❌ Failed to send admin notification email to ${username}:`, err.message || err);
   }
 }
