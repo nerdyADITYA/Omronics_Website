@@ -10,39 +10,26 @@ function getTransporter() {
 
     console.log(`\n======================================================`);
     console.log(`[SMTP STEP 1] Initializing Nodemailer Transporter`);
-    console.log(`   - EMAIL_HOST: "${process.env.EMAIL_HOST || 'smtp.gmail.com'}"`);
-    console.log(`   - EMAIL_PORT: "${process.env.EMAIL_PORT || '465'}"`);
-    console.log(`   - EMAIL_USERNAME: "${process.env.EMAIL_USERNAME || 'NOT_SET'}"`);
-    console.log(`   - Mode: ${isGmail ? 'Gmail Native Service (Port 465 SSL + IPv4 Forced)' : 'Custom SMTP'}`);
+    console.log(`   - HOST: "smtp.gmail.com"`);
+    console.log(`   - PORT: 465 (Implicit SSL/TLS)`);
+    console.log(`   - USER: "${process.env.EMAIL_USERNAME || 'NOT_SET'}"`);
+    console.log(`   - IPv4 Forced: family 4`);
     console.log(`======================================================\n`);
 
-    if (isGmail) {
-      transporter = nodemailer.createTransport({
-        service: 'gmail',
-        family: 4, // Force IPv4 to prevent IPv6 DNS routing timeouts on Render
-        connectionTimeout: 10000, // 10s connection timeout
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
-        auth: {
-          user: process.env.EMAIL_USERNAME,
-          pass: process.env.EMAIL_PASSWORD,
-        },
-      });
-    } else {
-      transporter = nodemailer.createTransport({
-        host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.EMAIL_PORT || '465', 10),
-        secure: true,
-        family: 4, // Force IPv4
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
-        auth: {
-          user: process.env.EMAIL_USERNAME,
-          pass: process.env.EMAIL_PASSWORD,
-        },
-      });
-    }
+    // Force direct SSL on Port 465 (NOT port 587 STARTTLS which is blocked on Render free tier)
+    transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true, // Direct SSL/TLS
+      family: 4, // Force IPv4
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 15000,
+      auth: {
+        user: process.env.EMAIL_USERNAME,
+        pass: process.env.EMAIL_PASSWORD,
+      },
+    });
   }
   return transporter;
 }
@@ -52,14 +39,47 @@ function getTransporter() {
  */
 export async function verifySmtpConnection() {
   try {
-    console.log(`[SMTP STEP 2] Verifying Transporter Connection with SMTP Server...`);
+    console.log(`[SMTP STEP 2] Verifying Transporter Connection on Port 465 (SSL)...`);
     const t = getTransporter();
     await t.verify();
-    console.log(`[SMTP STEP 2 SUCCESS] ✅ Transporter connection verified and ready!`);
+    console.log(`[SMTP STEP 2 SUCCESS] ✅ Transporter connection verified on Port 465!`);
     return { success: true, message: 'SMTP Transporter verified successfully.' };
   } catch (err) {
     console.error(`[SMTP STEP 2 ERROR] ❌ SMTP Verification Failed:`, err.message || err);
     return { success: false, error: err.message || String(err) };
+  }
+}
+
+/**
+ * Send email via Resend / HTTP API if configured
+ */
+async function sendViaResendHttp(to, subject, html) {
+  if (!process.env.RESEND_API_KEY) return null;
+  try {
+    console.log(`[HTTP EMAIL] Attempting dispatch via Resend HTTPS API to: "${to}"`);
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+      },
+      body: JSON.stringify({
+        from: 'Omronics Automation <onboarding@resend.dev>',
+        to: [to],
+        subject: subject,
+        html: html,
+      }),
+    });
+    const data = await response.json();
+    if (response.ok) {
+      console.log(`[HTTP EMAIL SUCCESS] ✅ Email sent via Resend API: ${data.id}`);
+      return { success: true, messageId: data.id, response: '200 OK via Resend HTTPS' };
+    }
+    console.error(`[HTTP EMAIL ERROR] Resend API returned error:`, data);
+    return { success: false, error: JSON.stringify(data) };
+  } catch (err) {
+    console.error(`[HTTP EMAIL ERROR] Resend fetch error:`, err.message);
+    return { success: false, error: err.message };
   }
 }
 
@@ -73,28 +93,43 @@ export async function sendEnquiryNotification(enquiry) {
   const password = process.env.EMAIL_PASSWORD;
 
   console.log(`\n------------------------------------------------------`);
-  console.log(`[SMTP DISPATCH START] Processing Enquiry #${enquiry.id || 'N/A'} for "${enquiry.customer_name}" (${enquiry.email})`);
+  console.log(`[EMAIL DISPATCH START] Processing Enquiry #${enquiry.id || 'N/A'} for "${enquiry.customer_name}" (${enquiry.email})`);
+
+  // Check Resend HTTP API first if provided
+  if (process.env.RESEND_API_KEY) {
+    console.log(`[EMAIL ROUTE] Using Resend HTTPS API (Port 443)...`);
+    const custRes = await sendViaResendHttp(
+      enquiry.email,
+      `Thank you for contacting Omronics - [Enquiry #${enquiry.id || 'N/A'}]`,
+      `<p>Dear <strong>${enquiry.customer_name}</strong>,</p><p>Thank you for reaching out to Omronics Automation. We have received your technical requirement.</p>`
+    );
+    const adminRes = await sendViaResendHttp(
+      username || 'adikadia05@gmail.com',
+      `🚨 New Lead Enquiry: ${enquiry.subject || 'Website Enquiry'}`,
+      `<p>New Enquiry from ${enquiry.customer_name} (${enquiry.email}): ${enquiry.requirement}</p>`
+    );
+    return { customer: custRes, admin: adminRes };
+  }
 
   if (!username || !password) {
-    console.warn(`[SMTP WARN] ⚠️ Missing EMAIL_USERNAME or EMAIL_PASSWORD. Skipping email dispatch.`);
+    console.warn(`[EMAIL WARN] ⚠️ Missing EMAIL_USERNAME or EMAIL_PASSWORD. Skipping email dispatch.`);
     return { success: false, reason: 'Credentials missing' };
   }
 
   const transporterInstance = getTransporter();
   const fromHeader = `"Omronics Industrial Automation" <${username}>`;
 
-  // Verify connection first with timeout safety
+  // Try verifying connection
   const verifyRes = await verifySmtpConnection();
   if (!verifyRes.success) {
-    console.error(`[SMTP CANCELLED] Skipping sendMail because connection verification failed: ${verifyRes.error}`);
-    return { success: false, error: verifyRes.error };
+    console.warn(`[SMTP WARN] SMTP Port 465 verification timed out or was blocked by host firewall: ${verifyRes.error}`);
   }
 
   const results = { customer: null, admin: null };
 
   // 1. Send Customer Confirmation Copy
   if (enquiry.email) {
-    console.log(`[SMTP STEP 3] Preparing Customer Confirmation Email to: "${enquiry.email}"`);
+    console.log(`[EMAIL STEP 3] Preparing Customer Confirmation Email to: "${enquiry.email}"`);
     const customerMailOptions = {
       from: fromHeader,
       to: enquiry.email,
@@ -121,20 +156,18 @@ export async function sendEnquiryNotification(enquiry) {
     };
 
     try {
-      console.log(`[SMTP STEP 4] Sending Customer Email via Nodemailer...`);
+      console.log(`[EMAIL STEP 4] Sending Customer Email via Nodemailer Port 465 SSL...`);
       const info = await transporterInstance.sendMail(customerMailOptions);
-      console.log(`[SMTP STEP 4 SUCCESS] ✅ Customer Email Dispatched!`);
-      console.log(`   - MessageId: ${info.messageId}`);
-      console.log(`   - Response: ${info.response}`);
+      console.log(`[EMAIL STEP 4 SUCCESS] ✅ Customer Email Dispatched! MessageId: ${info.messageId}`);
       results.customer = { success: true, messageId: info.messageId, response: info.response };
     } catch (err) {
-      console.error(`[SMTP STEP 4 ERROR] ❌ Customer Email Failed:`, err.message || err);
+      console.error(`[EMAIL STEP 4 ERROR] ❌ Customer Email Failed:`, err.message || err);
       results.customer = { success: false, error: err.message || String(err) };
     }
   }
 
   // 2. Send Admin Alert Copy
-  console.log(`[SMTP STEP 5] Preparing Admin Lead Notification Email to: "${username}"`);
+  console.log(`[EMAIL STEP 5] Preparing Admin Lead Notification Email to: "${username}"`);
   const adminMailOptions = {
     from: fromHeader,
     to: username,
@@ -156,18 +189,16 @@ export async function sendEnquiryNotification(enquiry) {
   };
 
   try {
-    console.log(`[SMTP STEP 6] Sending Admin Email via Nodemailer...`);
+    console.log(`[EMAIL STEP 6] Sending Admin Email via Nodemailer Port 465 SSL...`);
     const info = await transporterInstance.sendMail(adminMailOptions);
-    console.log(`[SMTP STEP 6 SUCCESS] ✅ Admin Email Dispatched!`);
-    console.log(`   - MessageId: ${info.messageId}`);
-    console.log(`   - Response: ${info.response}`);
+    console.log(`[EMAIL STEP 6 SUCCESS] ✅ Admin Email Dispatched! MessageId: ${info.messageId}`);
     results.admin = { success: true, messageId: info.messageId, response: info.response };
   } catch (err) {
-    console.error(`[SMTP STEP 6 ERROR] ❌ Admin Email Failed:`, err.message || err);
+    console.error(`[EMAIL STEP 6 ERROR] ❌ Admin Email Failed:`, err.message || err);
     results.admin = { success: false, error: err.message || String(err) };
   }
 
-  console.log(`[SMTP DISPATCH COMPLETE] Finished processing Enquiry #${enquiry.id || 'N/A'}\n------------------------------------------------------\n`);
+  console.log(`[EMAIL DISPATCH COMPLETE] Finished processing Enquiry #${enquiry.id || 'N/A'}\n------------------------------------------------------\n`);
   return results;
 }
 
@@ -176,9 +207,6 @@ export async function sendEnquiryNotification(enquiry) {
  */
 export async function testDiagnosticEmail(toEmail) {
   const verifyRes = await verifySmtpConnection();
-  if (!verifyRes.success) {
-    return { success: false, verify: verifyRes };
-  }
 
   const testEnquiry = {
     id: 999,
