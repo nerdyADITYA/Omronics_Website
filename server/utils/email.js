@@ -5,16 +5,31 @@ let transporter = null;
 
 function getTransporter() {
   if (!transporter) {
-    console.log('📧 Creating Nodemailer SMTP Transporter for:', process.env.EMAIL_USERNAME);
-    transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.EMAIL_PORT || '587', 10),
-      secure: process.env.EMAIL_PORT === '465',
-      auth: {
-        user: process.env.EMAIL_USERNAME,
-        pass: process.env.EMAIL_PASSWORD,
-      },
-    });
+    const isGmail =
+      (process.env.EMAIL_HOST || '').toLowerCase().includes('gmail') ||
+      (process.env.EMAIL_USERNAME || '').toLowerCase().includes('gmail');
+
+    if (isGmail) {
+      console.log('📧 Initializing Nodemailer with Gmail Service Mode (Port 465 SSL) for:', process.env.EMAIL_USERNAME);
+      transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USERNAME,
+          pass: process.env.EMAIL_PASSWORD,
+        },
+      });
+    } else {
+      console.log('📧 Initializing Nodemailer with Custom SMTP Mode for:', process.env.EMAIL_USERNAME);
+      transporter = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.EMAIL_PORT || '587', 10),
+        secure: process.env.EMAIL_PORT === '465',
+        auth: {
+          user: process.env.EMAIL_USERNAME,
+          pass: process.env.EMAIL_PASSWORD,
+        },
+      });
+    }
   }
   return transporter;
 }
@@ -29,12 +44,11 @@ export async function sendEnquiryNotification(enquiry) {
   const password = process.env.EMAIL_PASSWORD;
 
   if (!username || !password) {
-    console.warn('⚠️ SMTP Warning: EMAIL_USERNAME or EMAIL_PASSWORD environment variable is missing on Render. Skipping email dispatch.');
+    console.warn('⚠️ SMTP Warning: EMAIL_USERNAME or EMAIL_PASSWORD environment variable is missing. Skipping email dispatch.');
     return;
   }
 
   const transporterInstance = getTransporter();
-  // For Gmail SMTP, from header MUST match authenticated account (e.g. adikadia05@gmail.com)
   const fromHeader = `"Omronics Industrial Automation" <${username}>`;
 
   // 1. Send Customer Confirmation Copy (to the user who submitted the form)
