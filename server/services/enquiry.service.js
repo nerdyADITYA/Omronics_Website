@@ -32,12 +32,10 @@ export class EnquiryService {
 
     const enquiry = await enquiryRepository.create(payload);
 
-    // Send email notification for enquiry
-    try {
-      await sendEnquiryNotification(enquiry);
-    } catch (err) {
-      console.error('Enquiry notification email dispatch error:', err);
-    }
+    // Send email notification asynchronously in background for instant HTTP response (<100ms)
+    sendEnquiryNotification(enquiry).catch((err) => {
+      console.error('Enquiry notification email dispatch error:', err.message || err);
+    });
 
     return enquiry;
   }
