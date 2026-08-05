@@ -1,23 +1,14 @@
-import fs from 'fs';
-import path from 'path';
 import sharp from 'sharp';
 
 /**
- * Compress image buffer into WebP format and save to target directory
+ * Compress image buffer into Sharp-optimized WebP format and convert directly to Base64 Data URI
+ * Stored directly inside database text columns without external disk file dependency
  * @param {Buffer} buffer - Image file buffer
- * @param {string} folder - Target subfolder inside uploads (e.g. 'products', 'categories')
+ * @param {string} folder - Target subfolder name (ignored for Base64 storage)
  * @param {number} maxWidth - Maximum width (optional)
- * @returns {Promise<string>} Relative URL path to saved image
+ * @returns {Promise<string>} Base64 Data URI string (e.g. data:image/webp;base64,...)
  */
 export async function processAndSaveImage(buffer, folder = 'general', maxWidth = 1920) {
-  const uploadDir = path.join(process.cwd(), 'server', 'uploads', folder);
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-  }
-
-  const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.webp`;
-  const filePath = path.join(uploadDir, filename);
-
   let transform = sharp(buffer);
   const metadata = await transform.metadata();
 
@@ -25,7 +16,8 @@ export async function processAndSaveImage(buffer, folder = 'general', maxWidth =
     transform = transform.resize(maxWidth, null, { withoutEnlargement: true });
   }
 
-  await transform.webp({ quality: 85 }).toFile(filePath);
+  const webpBuffer = await transform.webp({ quality: 85 }).toBuffer();
+  const base64Data = webpBuffer.toString('base64');
 
-  return `/uploads/${folder}/${filename}`;
+  return `data:image/webp;base64,${base64Data}`;
 }
