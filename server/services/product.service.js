@@ -1,18 +1,18 @@
-import categoryRepository from '../repositories/category.repository.js';
 import productRepository from '../repositories/product.repository.js';
-import { generateSlug } from '../utils/slug.js';
+import categoryRepository from '../repositories/category.repository.js';
 import { AppError } from '../middlewares/error.middleware.js';
+import { generateSlug } from '../utils/slug.js';
 import { MESSAGES } from '../constants/messages.js';
 
 export class ProductService {
-  async getAll(params) {
-    return productRepository.findAll(params);
+  async getAll(options = {}) {
+    return productRepository.findAll(options);
   }
 
   async getById(id) {
     const product = await productRepository.findDetailById(id);
     if (!product) {
-      throw new AppError(MESSAGES.NOT_FOUND, 404);
+      throw new AppError(MESSAGES.PRODUCT_NOT_FOUND, 404);
     }
     return product;
   }
@@ -20,7 +20,7 @@ export class ProductService {
   async getBySlug(slug) {
     const product = await productRepository.findDetailBySlug(slug);
     if (!product) {
-      throw new AppError(MESSAGES.NOT_FOUND, 404);
+      throw new AppError(MESSAGES.PRODUCT_NOT_FOUND, 404);
     }
     return product;
   }
@@ -31,10 +31,31 @@ export class ProductService {
       throw new AppError('Specified category does not exist.', 400);
     }
 
-    const slug = data.slug ? generateSlug(data.slug) : generateSlug(data.product_name);
+    const slug = generateSlug(data.slug || data.product_name);
     const existing = await productRepository.findBySlug(slug);
     if (existing) {
       throw new AppError(MESSAGES.DUPLICATE_SLUG, 409);
+    }
+
+    let docsToSync = [];
+    const hasPdfCatalog = data.pdf_catalog !== undefined && Boolean(
+      typeof data.pdf_catalog === 'object'
+        ? (data.pdf_catalog?.url || data.pdf_catalog?.document_url)
+        : data.pdf_catalog
+    );
+
+    if (hasPdfCatalog) {
+      const docObj = typeof data.pdf_catalog === 'object' ? data.pdf_catalog : { url: data.pdf_catalog };
+      docsToSync = [
+        {
+          document_name: docObj.filename || `${data.product_name} Catalog PDF`,
+          document_url: docObj.url || docObj.document_url || data.pdf_catalog,
+          document_type: 'CATALOGUE',
+          file_size: docObj.fileSize || docObj.file_size || null,
+        },
+      ];
+    } else if (Array.isArray(data.documents) && data.documents.length > 0) {
+      docsToSync = data.documents;
     }
 
     const payload = {
@@ -48,7 +69,7 @@ export class ProductService {
       specifications: data.specifications || null,
       applications: data.applications || null,
       thumbnail_image: data.thumbnail_image || null,
-      datasheet_available: data.datasheet_available ? 1 : 0,
+      datasheet_available: docsToSync.length > 0 ? 1 : 0,
       featured: data.featured ? 1 : 0,
       status: data.status || 'ACTIVE',
       sort_order: data.sort_order || 0,
@@ -62,8 +83,8 @@ export class ProductService {
       await productRepository.syncImages(product.id, data.images);
     }
 
-    if (data.documents && Array.isArray(data.documents)) {
-      await productRepository.syncDocuments(product.id, data.documents);
+    if (docsToSync.length > 0) {
+      await productRepository.syncDocuments(product.id, docsToSync);
     }
 
     return this.getById(product.id);
@@ -83,6 +104,8 @@ export class ProductService {
     delete updatePayload.id;
     delete updatePayload.images;
     delete updatePayload.documents;
+    delete updatePayload.pdf_catalog;
+    delete updatePayload.pdf_catalog_url;
     delete updatePayload.category_name;
     delete updatePayload.category_slug;
     delete updatePayload.created_at;
@@ -98,14 +121,45 @@ export class ProductService {
       updatePayload.slug = newSlug;
     }
 
+    let docsToSync = null;
+
+    if (data.pdf_catalog !== undefined) {
+      const hasPdfCatalog = Boolean(
+        typeof data.pdf_catalog === 'object'
+          ? (data.pdf_catalog?.url || data.pdf_catalog?.document_url)
+          : data.pdf_catalog
+      );
+
+      if (hasPdfCatalog) {
+        const docObj = typeof data.pdf_catalog === 'object' ? data.pdf_catalog : { url: data.pdf_catalog };
+        docsToSync = [
+          {
+            document_name: docObj.filename || `${data.product_name || 'Product'} Catalog PDF`,
+            document_url: docObj.url || docObj.document_url || data.pdf_catalog,
+            document_type: 'CATALOGUE',
+            file_size: docObj.fileSize || docObj.file_size || null,
+          },
+        ];
+      } else {
+        // Explicitly cleared
+        docsToSync = [];
+      }
+    } else if (Array.isArray(data.documents)) {
+      docsToSync = data.documents;
+    }
+
+    if (docsToSync !== null) {
+      updatePayload.datasheet_available = docsToSync.length > 0 ? 1 : 0;
+    }
+
     await productRepository.update(id, updatePayload);
 
     if (data.images && Array.isArray(data.images)) {
       await productRepository.syncImages(id, data.images);
     }
 
-    if (data.documents && Array.isArray(data.documents)) {
-      await productRepository.syncDocuments(id, data.documents);
+    if (docsToSync !== null) {
+      await productRepository.syncDocuments(id, docsToSync);
     }
 
     return this.getById(id);
@@ -113,7 +167,16 @@ export class ProductService {
 
   async delete(id) {
     await this.getById(id);
-    return productRepository.delete(id, true);
+    await productRepository.delete(id);
+    return true;
+  }
+
+  async getDocument(docId) {
+    const doc = await productRepository.getDocumentById(docId);
+    if (!doc) {
+      throw new AppError('Document not found', 404);
+    }
+    return doc;
   }
 }
 

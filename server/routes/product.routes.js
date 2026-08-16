@@ -7,6 +7,7 @@ const router = Router();
 
 // Public Routes
 router.get('/', productController.getAll);
+router.get('/documents/:docId/download', productController.downloadDocument);
 router.get('/slug/:slug', productController.getBySlug);
 router.get('/:id', productController.getById);
 

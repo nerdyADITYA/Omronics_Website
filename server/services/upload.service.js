@@ -1,4 +1,5 @@
 import { processAndSaveImage } from '../utils/image.js';
+import { compressAndSavePdf } from '../utils/pdf.js';
 import { AppError } from '../middlewares/error.middleware.js';
 
 export class UploadService {
@@ -54,19 +55,22 @@ export class UploadService {
   }
 
   /**
-   * Process single PDF document upload
+   * Process and compress single PDF document upload
    * @param {object} file - Express multer file
    */
   async uploadSingleDocument(file) {
-    if (!file) {
+    if (!file || (!file.buffer && !file.path)) {
       throw new AppError('No document file provided.', 400);
     }
 
-    const relativeUrl = `/uploads/documents/${file.filename}`;
-    return {
-      url: relativeUrl,
-      filename: file.originalname,
-    };
+    try {
+      const buffer = file.buffer || fs.readFileSync(file.path);
+      const pdfResult = await compressAndSavePdf(buffer, file.originalname);
+      return pdfResult;
+    } catch (err) {
+      console.error('Document upload error:', err);
+      throw new AppError(`Failed to process document: ${err.message}`, 400);
+    }
   }
 }
 

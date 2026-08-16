@@ -13,7 +13,6 @@ import {
   Wrench,
   Cable,
   ArrowRight,
-  Handshake,
   Sparkles,
   Wind,
   Sliders,
@@ -22,8 +21,6 @@ import {
   Compass,
   Rocket,
   Check,
-  Building2,
-  Clock,
   HeartHandshake,
 } from 'lucide-react';
 import { Header } from '../../components/common/Header';
@@ -42,7 +39,6 @@ export function About() {
       description:
         'We provide industrial blower solutions for applications requiring efficient air movement, ventilation, cooling, drying, exhaust, and process air circulation. Our blower range is suitable for various industrial machinery and process applications.',
       icon: Wind,
-      accent: 'from-cyan-500 to-blue-500',
     },
     {
       num: '02',
@@ -50,7 +46,6 @@ export function About() {
       description:
         'We design and manufacture customized control panels for industrial machines and automation systems. These panels can integrate PLCs, HMIs, VFDs, servo drives, relays, contactors, protection devices, and other automation components.',
       icon: Sliders,
-      accent: 'from-blue-500 to-indigo-500',
     },
     {
       num: '03',
@@ -58,7 +53,6 @@ export function About() {
       description:
         'Our power panels are designed for reliable distribution, switching, protection, and control of electrical power within industrial facilities and machinery.',
       icon: Zap,
-      accent: 'from-amber-500 to-orange-500',
     },
     {
       num: '04',
@@ -66,7 +60,6 @@ export function About() {
       description:
         'We provide customized Power Distribution (PD) Panels designed for organized and safe distribution of electrical power to multiple machines, production lines, and industrial loads.',
       icon: Layers,
-      accent: 'from-indigo-500 to-purple-500',
     },
     {
       num: '05',
@@ -74,7 +67,6 @@ export function About() {
       description:
         'Our Automatic Power Factor Correction (APFC) Panels are designed to improve power factor and optimize electrical power utilization by automatically controlling capacitor banks according to the connected load.',
       icon: Activity,
-      accent: 'from-emerald-500 to-teal-500',
     },
     {
       num: '06',
@@ -82,7 +74,6 @@ export function About() {
       description:
         'Omronics Automation supplies servo motor cables and related motion-control cabling solutions for industrial automation applications. We support cables for various servo systems, including power, encoder, feedback, brake, and communication connections, depending on application requirements.',
       icon: Cable,
-      accent: 'from-cyan-400 to-sky-500',
     },
     {
       num: '07',
@@ -90,7 +81,6 @@ export function About() {
       description:
         'We offer relay modules for industrial control applications, providing reliable electrical isolation and interface between PLCs, controllers, sensors, actuators, and field devices.',
       icon: Cpu,
-      accent: 'from-purple-500 to-pink-500',
     },
     {
       num: '08',
@@ -98,7 +88,6 @@ export function About() {
       description:
         'Our customized cable solutions are developed according to specific machine and automation requirements. Cable assemblies can be supplied with selected lengths, connectors, pin configurations, shielding, wire specifications, labels, and termination arrangements.',
       icon: Wrench,
-      accent: 'from-orange-500 to-red-500',
     },
   ];
 
@@ -148,7 +137,7 @@ export function About() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-[#F3F9FB] text-[#113F67] flex flex-col font-sans">
       <SEOManager
         title="About Us | Omronics Automation"
         description="Omronics Automation is an industrial automation and electrical engineering company established in 2018, providing reliable automation products, electrical control solutions, and customized industrial systems."
@@ -159,21 +148,21 @@ export function About() {
       <main className="flex-1 pt-28 pb-20">
         {/* HERO BANNER & COMPANY OVERVIEW */}
         <section className="relative py-12 overflow-hidden">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-7xl h-[450px] bg-gradient-to-tr from-cyan-500/10 to-indigo-600/10 blur-[120px] rounded-full pointer-events-none"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-7xl h-[450px] bg-gradient-to-tr from-[#87C0CD]/20 via-[#226597]/10 to-[#113F67]/10 blur-[120px] rounded-full pointer-events-none"></div>
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-8 text-center">
-            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-800/60 text-cyan-300 text-xs font-bold uppercase tracking-widest">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-[#E4F1F5] border border-[#87C0CD]/50 text-[#113F67] text-xs font-bold uppercase tracking-widest shadow-sm">
+              <Sparkles className="w-3.5 h-3.5 text-[#226597]" />
               <span>About Us</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold font-display leading-tight max-w-5xl mx-auto">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold font-display leading-tight max-w-5xl mx-auto text-[#113F67]">
               Engineering Excellence in <span className="text-gradient">Industrial Automation</span>
             </h1>
 
-            <div className="max-w-4xl mx-auto space-y-6 text-slate-300 text-sm sm:text-base leading-relaxed text-left sm:text-center glass-panel p-8 sm:p-10 rounded-3xl border border-slate-800">
+            <div className="max-w-4xl mx-auto space-y-6 text-slate-600 text-sm sm:text-base leading-relaxed text-left sm:text-center glass-panel p-8 sm:p-10 rounded-3xl border border-[#87C0CD]/40 shadow-sm">
               <p>
-                <strong className="text-cyan-400 font-semibold">Omronics Automation</strong> is an industrial automation and electrical engineering company established in <strong>2018</strong>, providing reliable automation products, electrical control solutions, and customized industrial systems for a wide range of manufacturing and industrial applications.
+                <strong className="text-[#226597] font-semibold">Omronics Automation</strong> is an industrial automation and electrical engineering company established in <strong>2018</strong>, providing reliable automation products, electrical control solutions, and customized industrial systems for a wide range of manufacturing and industrial applications.
               </p>
               <p>
                 Since our inception, we have focused on delivering quality products, engineered solutions, customized cable assemblies, control panels, and industrial automation solutions that help industries improve productivity, operational reliability, safety, and machine performance.
@@ -186,16 +175,16 @@ export function About() {
         </section>
 
         {/* SECTION 1: OUR CORE BUSINESS SEGMENTS */}
-        <section className="py-16 bg-slate-900/40 border-t border-slate-900">
+        <section className="py-16 bg-white border-t border-[#87C0CD]/30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
             <div className="text-center max-w-3xl mx-auto space-y-3">
-              <span className="px-3 py-1 rounded-full bg-cyan-950 border border-cyan-800 text-cyan-400 text-xs font-bold uppercase tracking-widest">
+              <span className="px-3 py-1 rounded-full bg-[#E4F1F5] border border-[#87C0CD]/50 text-[#113F67] text-xs font-bold uppercase tracking-widest">
                 Product & Solution Portfolio
               </span>
-              <h2 className="text-3xl sm:text-4xl font-extrabold font-display text-white">
+              <h2 className="text-3xl sm:text-4xl font-extrabold font-display text-[#113F67]">
                 Our Core Business Segments
               </h2>
-              <p className="text-xs sm:text-sm text-slate-400">
+              <p className="text-xs sm:text-sm text-slate-600">
                 Comprehensive range of engineered products and customized industrial solutions.
               </p>
             </div>
@@ -210,25 +199,23 @@ export function About() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: idx * 0.05 }}
-                    className="glass-panel p-6 rounded-3xl border border-slate-800 hover:border-cyan-500/50 transition group flex flex-col justify-between"
+                    className="glass-panel p-6 rounded-3xl border border-[#87C0CD]/40 hover:border-[#226597] transition group flex flex-col justify-between shadow-sm"
                   >
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-tr ${seg.accent} p-0.5 shadow-lg`}>
-                          <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center text-cyan-400 group-hover:scale-110 transition">
-                            <IconComponent className="w-6 h-6 text-cyan-400" />
-                          </div>
+                        <div className="w-12 h-12 rounded-2xl bg-[#E4F1F5] border border-[#87C0CD]/50 flex items-center justify-center text-[#226597] group-hover:scale-110 transition shadow-inner">
+                          <IconComponent className="w-6 h-6" />
                         </div>
-                        <span className="text-xs font-extrabold font-display text-slate-500 group-hover:text-cyan-400 transition">
+                        <span className="text-xs font-extrabold font-display text-[#87C0CD] group-hover:text-[#226597] transition">
                           {seg.num}
                         </span>
                       </div>
 
-                      <h3 className="text-lg font-bold font-display text-white group-hover:text-cyan-400 transition">
+                      <h3 className="text-lg font-bold font-display text-[#113F67] group-hover:text-[#226597] transition">
                         {seg.title}
                       </h3>
 
-                      <p className="text-xs text-slate-300 leading-relaxed">
+                      <p className="text-xs text-slate-600 leading-relaxed">
                         {seg.description}
                       </p>
                     </div>
@@ -240,45 +227,45 @@ export function About() {
         </section>
 
         {/* SECTION 2: OUR EXPERTISE & OUR APPROACH */}
-        <section className="py-16 bg-slate-950 border-t border-slate-900">
+        <section className="py-16 bg-[#F3F9FB] border-t border-[#87C0CD]/30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
             {/* OUR EXPERTISE */}
-            <div className="glass-panel p-8 rounded-3xl border border-slate-800 space-y-6">
+            <div className="glass-panel p-8 rounded-3xl border border-[#87C0CD]/40 space-y-6 shadow-sm">
               <div className="space-y-2">
-                <span className="px-3 py-1 rounded-full bg-indigo-950 border border-indigo-800 text-indigo-300 text-xs font-bold uppercase tracking-widest">
+                <span className="px-3 py-1 rounded-full bg-[#E4F1F5] border border-[#87C0CD]/50 text-[#113F67] text-xs font-bold uppercase tracking-widest">
                   Specialized Capabilities
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-extrabold font-display text-white">
+                <h2 className="text-2xl sm:text-3xl font-extrabold font-display text-[#113F67]">
                   Our Expertise
                 </h2>
-                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
                   Omronics Automation combines industrial automation, electrical control, motion control, panel engineering, and cable assembly expertise to provide integrated solutions.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {expertiseItems.map((item, idx) => (
-                  <div key={idx} className="flex items-start space-x-2.5 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80">
-                    <CheckCircle2 className="w-4 h-4 text-cyan-400 mt-0.5 shrink-0" />
-                    <span className="text-xs font-medium text-slate-200">{item}</span>
+                  <div key={idx} className="flex items-start space-x-2.5 p-2.5 rounded-xl bg-white border border-[#87C0CD]/30 shadow-sm">
+                    <CheckCircle2 className="w-4 h-4 text-[#226597] mt-0.5 shrink-0" />
+                    <span className="text-xs font-semibold text-[#113F67]">{item}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* OUR APPROACH */}
-            <div className="glass-panel p-8 rounded-3xl border border-slate-800 space-y-6">
+            <div className="glass-panel p-8 rounded-3xl border border-[#87C0CD]/40 space-y-6 shadow-sm">
               <div className="space-y-2">
-                <span className="px-3 py-1 rounded-full bg-blue-950 border border-blue-800 text-blue-300 text-xs font-bold uppercase tracking-widest">
+                <span className="px-3 py-1 rounded-full bg-[#E4F1F5] border border-[#87C0CD]/50 text-[#113F67] text-xs font-bold uppercase tracking-widest">
                   Application-Specific Strategy
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-extrabold font-display text-white">
+                <h2 className="text-2xl sm:text-3xl font-extrabold font-display text-[#113F67]">
                   Our Approach
                 </h2>
-                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
                   We believe that every machine and industrial application has different requirements. Therefore, our approach is focused on providing application-specific solutions rather than one-size-fits-all products.
                 </p>
-                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed pt-2">
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed pt-2">
                   From understanding the customer's requirement to product selection, customization, manufacturing, testing, and support, we aim to provide solutions that deliver:
                 </p>
               </div>
@@ -287,9 +274,9 @@ export function About() {
                 {approachPillars.map((pillar, idx) => (
                   <span
                     key={idx}
-                    className="px-4 py-2 rounded-2xl bg-gradient-to-r from-cyan-950 to-indigo-950 border border-cyan-700/50 text-cyan-300 font-bold text-xs shadow-md tracking-wide flex items-center space-x-2"
+                    className="px-4 py-2 rounded-2xl bg-[#E4F1F5] border border-[#87C0CD]/50 text-[#113F67] font-bold text-xs shadow-sm tracking-wide flex items-center space-x-2"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                    <Sparkles className="w-3.5 h-3.5 text-[#226597]" />
                     <span>{pillar}</span>
                   </span>
                 ))}
@@ -299,21 +286,21 @@ export function About() {
         </section>
 
         {/* SECTION 3: VISION & MISSION */}
-        <section className="py-16 bg-slate-900/40 border-t border-slate-900">
+        <section className="py-16 bg-white border-t border-[#87C0CD]/30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* OUR VISION */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              className="glass-panel p-8 rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-slate-900 via-slate-950 to-cyan-950/30 space-y-6 flex flex-col justify-between shadow-xl"
+              className="glass-panel p-8 rounded-3xl border border-[#87C0CD]/40 bg-gradient-to-br from-[#F3F9FB] via-white to-white space-y-6 flex flex-col justify-between shadow-md"
             >
               <div className="space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-cyan-950 border border-cyan-800 flex items-center justify-center text-cyan-400 shadow-inner">
-                  <Compass className="w-7 h-7 text-cyan-400" />
+                <div className="w-14 h-14 rounded-2xl bg-[#E4F1F5] border border-[#87C0CD]/50 flex items-center justify-center text-[#226597] shadow-inner">
+                  <Compass className="w-7 h-7 text-[#226597]" />
                 </div>
-                <h3 className="text-2xl font-extrabold font-display text-white">Our Vision</h3>
-                <p className="text-sm text-slate-300 leading-relaxed">
+                <h3 className="text-2xl font-extrabold font-display text-[#113F67]">Our Vision</h3>
+                <p className="text-sm text-slate-600 leading-relaxed">
                   To become a trusted and recognized name in industrial automation and electrical engineering, delivering innovative, reliable, and cost-effective solutions to industries across India and global markets.
                 </p>
               </div>
@@ -324,22 +311,22 @@ export function About() {
               initial={{ opacity: 0, x: 20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              className="glass-panel p-8 rounded-3xl border border-indigo-500/30 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/30 space-y-6 shadow-xl"
+              className="glass-panel p-8 rounded-3xl border border-[#87C0CD]/40 bg-gradient-to-br from-[#F3F9FB] via-white to-white space-y-6 shadow-md"
             >
               <div className="space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-indigo-950 border border-indigo-800 flex items-center justify-center text-indigo-400 shadow-inner">
-                  <Rocket className="w-7 h-7 text-indigo-400" />
+                <div className="w-14 h-14 rounded-2xl bg-[#E4F1F5] border border-[#87C0CD]/50 flex items-center justify-center text-[#226597] shadow-inner">
+                  <Rocket className="w-7 h-7 text-[#226597]" />
                 </div>
-                <h3 className="text-2xl font-extrabold font-display text-white">Our Mission</h3>
-                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                <h3 className="text-2xl font-extrabold font-display text-[#113F67]">Our Mission</h3>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
                   Our mission is to provide high-quality automation products and engineered electrical solutions that help our customers achieve:
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {missionGoals.map((goal, idx) => (
-                  <div key={idx} className="flex items-start space-x-2 text-xs text-slate-200">
-                    <Check className="w-3.5 h-3.5 text-indigo-400 mt-0.5 shrink-0" />
+                  <div key={idx} className="flex items-start space-x-2 text-xs font-semibold text-[#113F67]">
+                    <Check className="w-3.5 h-3.5 text-[#226597] mt-0.5 shrink-0" />
                     <span>{goal}</span>
                   </div>
                 ))}
@@ -349,16 +336,16 @@ export function About() {
         </section>
 
         {/* SECTION 4: WHY CHOOSE OMRONICS AUTOMATION? */}
-        <section className="py-16 bg-slate-950 border-t border-slate-900">
+        <section className="py-16 bg-[#F3F9FB] border-t border-[#87C0CD]/30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
             <div className="text-center max-w-3xl mx-auto space-y-3">
-              <span className="px-3 py-1 rounded-full bg-amber-950 border border-amber-800 text-amber-300 text-xs font-bold uppercase tracking-widest">
+              <span className="px-3 py-1 rounded-full bg-[#E4F1F5] border border-[#87C0CD]/50 text-[#113F67] text-xs font-bold uppercase tracking-widest">
                 Proven Track Record
               </span>
-              <h2 className="text-3xl sm:text-4xl font-extrabold font-display text-white">
+              <h2 className="text-3xl sm:text-4xl font-extrabold font-display text-[#113F67]">
                 Why Choose Omronics Automation?
               </h2>
-              <p className="text-xs sm:text-sm text-slate-400 max-w-2xl mx-auto">
+              <p className="text-xs sm:text-sm text-slate-600 max-w-2xl mx-auto">
                 Discover the key strengths and advantages that make us the preferred partner for machine builders and industrial operations.
               </p>
             </div>
@@ -371,12 +358,12 @@ export function About() {
                   whileInView={{ opacity: 1, scale: 1 }}
                   viewport={{ once: true }}
                   transition={{ delay: idx * 0.04 }}
-                  className="glass-panel p-5 rounded-2xl border border-slate-800 hover:border-amber-500/40 transition group flex flex-col justify-between space-y-3"
+                  className="glass-panel p-5 rounded-2xl border border-[#87C0CD]/40 hover:border-[#226597] transition group flex flex-col justify-between space-y-3 shadow-sm"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-amber-950/80 border border-amber-800/80 flex items-center justify-center text-amber-400">
+                  <div className="w-8 h-8 rounded-lg bg-[#E4F1F5] border border-[#87C0CD]/50 flex items-center justify-center text-[#226597]">
                     <Award className="w-4 h-4" />
                   </div>
-                  <p className="text-xs font-bold text-slate-200 group-hover:text-amber-300 transition leading-snug">
+                  <p className="text-xs font-bold text-[#113F67] group-hover:text-[#226597] transition leading-snug">
                     {point}
                   </p>
                 </motion.div>
@@ -386,24 +373,24 @@ export function About() {
         </section>
 
         {/* SECTION 5: OUR COMMITMENT & CTA */}
-        <section className="py-20 bg-slate-900/50 border-t border-slate-900 relative overflow-hidden">
+        <section className="py-20 bg-white border-t border-[#87C0CD]/30 relative overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <div className="glass-panel max-w-4xl mx-auto p-10 rounded-3xl border border-cyan-500/40 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950 space-y-6 shadow-2xl relative">
-              <div className="w-16 h-16 rounded-2xl bg-cyan-950 border border-cyan-800 flex items-center justify-center text-cyan-400 mx-auto">
-                <HeartHandshake className="w-8 h-8 text-cyan-400" />
+            <div className="glass-panel max-w-4xl mx-auto p-10 rounded-3xl border border-[#87C0CD]/40 bg-gradient-to-b from-[#F3F9FB] via-white to-white space-y-6 shadow-xl relative">
+              <div className="w-16 h-16 rounded-2xl bg-[#E4F1F5] border border-[#87C0CD]/50 flex items-center justify-center text-[#226597] mx-auto shadow-inner">
+                <HeartHandshake className="w-8 h-8 text-[#226597]" />
               </div>
-              <h2 className="text-3xl sm:text-4xl font-extrabold font-display text-white">Our Commitment</h2>
-              <p className="text-sm text-slate-300 leading-relaxed max-w-2xl mx-auto">
+              <h2 className="text-3xl sm:text-4xl font-extrabold font-display text-[#113F67]">Our Commitment</h2>
+              <p className="text-sm text-slate-600 leading-relaxed max-w-2xl mx-auto">
                 At Omronics Automation, we are committed to building long-term relationships with our customers through quality products, dependable solutions, technical expertise, and continuous improvement.
               </p>
-              <p className="text-xs sm:text-sm font-semibold text-cyan-300 max-w-2xl mx-auto italic">
+              <p className="text-xs sm:text-sm font-semibold text-[#226597] max-w-2xl mx-auto italic">
                 "Our goal is not simply to supply products, but to become a reliable automation partner for our customers throughout their machine development, production, and industrial operations."
               </p>
 
               <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
                 <button
                   onClick={() => setLeadModalOpen(true)}
-                  className="px-8 py-3.5 bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 hover:from-cyan-300 hover:to-indigo-500 text-slate-950 font-extrabold text-xs rounded-2xl shadow-xl transition transform hover:-translate-y-0.5 flex items-center space-x-2"
+                  className="px-8 py-3.5 bg-[#226597] hover:bg-[#113F67] text-white font-extrabold text-xs rounded-2xl shadow-md transition transform hover:-translate-y-0.5 flex items-center space-x-2"
                 >
                   <span>Request Industrial Quote</span>
                   <ArrowRight className="w-4 h-4" />

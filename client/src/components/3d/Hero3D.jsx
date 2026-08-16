@@ -15,7 +15,7 @@ function AnimatedCore() {
   return (
     <Sphere ref={meshRef} args={[1, 64, 64]} scale={2}>
       <MeshDistortMaterial
-        color="#0066cc"
+        color="#226597"
         attach="material"
         distort={0.4}
         speed={1.5}
@@ -31,9 +31,9 @@ export function Hero3D() {
   return (
     <div className="w-full h-[450px] md:h-[550px] relative">
       <Canvas camera={{ position: [0, 0, 5], fov: 60 }}>
-        <ambientLight intensity={0.8} />
+        <ambientLight intensity={1} />
         <directionalLight position={[10, 10, 5]} intensity={1.5} />
-        <pointLight position={[-10, -10, -10]} color="#00ffff" intensity={2} />
+        <pointLight position={[-10, -10, -10]} color="#87C0CD" intensity={2} />
         <AnimatedCore />
         <OrbitControls enableZoom={false} autoRotate autoRotateSpeed={0.5} />
       </Canvas>

@@ -4,26 +4,31 @@ export default {
   theme: {
     extend: {
       colors: {
+        brand: {
+          50: '#F3F9FB',  // Soft Ice / Main Background
+          100: '#E4F1F5', // Ice Tint
+          200: '#CBE2E8', // Light Aqua Tint
+          300: '#87C0CD', // Slate Aqua Accent
+          400: '#5296AA', // Medium Ocean Blue
+          500: '#226597', // Ocean Steel Blue Primary
+          600: '#1A527B', // Dark Steel Blue
+          700: '#113F67', // Deep Industrial Navy Header/Text
+          800: '#0B2C49', // Dark Navy Shadow
+          900: '#061C30', // Deepest Navy
+        },
         industrial: {
-          50: '#f0f6ff',
-          100: '#e0edff',
-          500: '#0066cc',
-          600: '#0052a3',
-          700: '#003d7a',
-          900: '#0b1329',
-          950: '#050a17',
-        },
-        slate: {
-          850: '#111927',
-          900: '#0d131f',
-        },
-        amber: {
-          500: '#f59e0b',
+          50: '#F3F9FB',
+          100: '#E4F1F5',
+          500: '#226597',
+          600: '#1A527B',
+          700: '#113F67',
+          900: '#061C30',
+          950: '#030E1A',
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        display: ['Outfit', 'Inter', 'sans-serif'],
+        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        display: ['"Space Grotesk"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
     },
   },

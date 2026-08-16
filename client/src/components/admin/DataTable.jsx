@@ -16,24 +16,24 @@ export function DataTable({
   loading = false,
 }) {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+    <div className="bg-white border border-[#87C0CD]/40 rounded-2xl shadow-sm overflow-hidden font-sans">
       {/* Header Bar */}
-      <div className="p-4 md:p-6 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-4 md:p-6 border-b border-[#87C0CD]/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-100 font-display">{title}</h2>
-          <p className="text-xs text-slate-400">Total {pagination.total || data.length} items found</p>
+          <h2 className="text-lg font-bold text-[#113F67] font-display">{title}</h2>
+          <p className="text-xs text-slate-500 font-medium">Total {pagination.total || data.length} items found</p>
         </div>
 
         <div className="flex items-center space-x-3">
           {/* Search Input */}
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#226597]" />
             <input
               type="text"
               placeholder="Search..."
               value={searchValue}
               onChange={(e) => onSearch && onSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-cyan-500 w-48 md:w-64 transition"
+              className="pl-9 pr-4 py-2 bg-[#F3F9FB] border border-[#87C0CD]/40 rounded-xl text-xs text-[#113F67] focus:outline-none focus:border-[#226597] w-48 md:w-64 transition"
             />
           </div>
 
@@ -41,7 +41,7 @@ export function DataTable({
           {onAddNew && (
             <button
               onClick={onAddNew}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-semibold text-xs rounded-xl shadow-lg shadow-cyan-500/20 transition"
+              className="flex items-center space-x-1.5 px-4 py-2 bg-[#226597] hover:bg-[#113F67] text-white font-bold text-xs rounded-xl shadow transition"
             >
               <Plus className="w-4 h-4" />
               <span>Add New</span>
@@ -52,36 +52,36 @@ export function DataTable({
 
       {/* Table Body */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs text-slate-300">
-          <thead className="bg-slate-950/60 uppercase text-[10px] tracking-wider text-slate-400 border-b border-slate-800">
+        <table className="w-full text-left text-xs text-[#113F67]">
+          <thead className="bg-[#F3F9FB] uppercase text-[10px] tracking-wider text-[#113F67] border-b border-[#87C0CD]/30 font-bold">
             <tr>
               {columns.map((col) => (
-                <th key={col.key || col.header} className="px-6 py-3.5 font-semibold">
+                <th key={col.key || col.header} className="px-6 py-3.5 font-bold">
                   {col.header}
                 </th>
               ))}
-              {(onEdit || onDelete) && <th className="px-6 py-3.5 text-right">Actions</th>}
+              {(onEdit || onDelete) && <th className="px-6 py-3.5 text-right font-bold">Actions</th>}
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-slate-800/60">
+          <tbody className="divide-y divide-[#87C0CD]/20">
             {loading ? (
               <tr>
-                <td colSpan={columns.length + 1} className="px-6 py-12 text-center text-slate-500">
+                <td colSpan={columns.length + 1} className="px-6 py-12 text-center text-slate-500 font-medium">
                   Loading data...
                 </td>
               </tr>
             ) : data.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 1} className="px-6 py-12 text-center text-slate-500">
+                <td colSpan={columns.length + 1} className="px-6 py-12 text-center text-slate-500 font-medium">
                   No records found.
                 </td>
               </tr>
             ) : (
               data.map((row, idx) => (
-                <tr key={row.id || idx} className="hover:bg-slate-800/40 transition">
+                <tr key={row.id || idx} className="hover:bg-[#F3F9FB]/60 transition">
                   {columns.map((col) => (
-                    <td key={col.key} className="px-6 py-4">
+                    <td key={col.key} className="px-6 py-4 font-medium">
                       {col.render ? (
                         col.render(row[col.key], row)
                       ) : col.key === 'status' ? (
@@ -97,7 +97,7 @@ export function DataTable({
                       {onEdit && (
                         <button
                           onClick={() => onEdit(row)}
-                          className="p-1.5 text-slate-400 hover:text-cyan-400 rounded-lg hover:bg-slate-800 transition"
+                          className="p-1.5 text-[#226597] hover:text-[#113F67] rounded-lg hover:bg-[#E4F1F5] transition"
                           title="Edit"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -106,7 +106,7 @@ export function DataTable({
                       {onDelete && (
                         <button
                           onClick={() => onDelete(row)}
-                          className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition"
+                          className="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition"
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -123,8 +123,8 @@ export function DataTable({
 
       {/* Pagination Footer */}
       {pagination && pagination.totalPages > 1 && (
-        <div className="p-4 border-t border-slate-800 bg-slate-950/40 flex items-center justify-between">
-          <span className="text-xs text-slate-400">
+        <div className="p-4 border-t border-[#87C0CD]/30 bg-[#F3F9FB] flex items-center justify-between">
+          <span className="text-xs text-slate-500 font-medium">
             Page {pagination.page} of {pagination.totalPages}
           </span>
 
@@ -132,14 +132,14 @@ export function DataTable({
             <button
               disabled={pagination.page <= 1}
               onClick={() => onPageChange(pagination.page - 1)}
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-300 rounded-lg transition"
+              className="p-1.5 bg-white border border-[#87C0CD]/40 hover:bg-[#E4F1F5] disabled:opacity-40 text-[#113F67] rounded-lg transition shadow-xs"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               disabled={pagination.page >= pagination.totalPages}
               onClick={() => onPageChange(pagination.page + 1)}
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-300 rounded-lg transition"
+              className="p-1.5 bg-white border border-[#87C0CD]/40 hover:bg-[#E4F1F5] disabled:opacity-40 text-[#113F67] rounded-lg transition shadow-xs"
             >
               <ChevronRight className="w-4 h-4" />
             </button>

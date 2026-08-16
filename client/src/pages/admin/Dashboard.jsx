@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, FolderTree, Inbox, Wrench, ArrowUpRight, Clock, ShieldCheck } from 'lucide-react';
+import { Package, FolderTree, Inbox, Wrench } from 'lucide-react';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import api from '../../services/api';
 
@@ -41,18 +41,18 @@ export function Dashboard() {
   }, []);
 
   const statCards = [
-    { name: 'Total Products', count: stats.products, icon: Package, color: 'text-cyan-400', bg: 'bg-cyan-950/60 border-cyan-800/50' },
-    { name: 'Categories', count: stats.categories, icon: FolderTree, color: 'text-indigo-400', bg: 'bg-indigo-950/60 border-indigo-800/50' },
-    { name: 'Customer Enquiries', count: stats.enquiries, icon: Inbox, color: 'text-amber-400', bg: 'bg-amber-950/60 border-amber-800/50' },
-    { name: 'Active Services', count: stats.services, icon: Wrench, color: 'text-emerald-400', bg: 'bg-emerald-950/60 border-emerald-800/50' },
+    { name: 'Total Products', count: stats.products, icon: Package },
+    { name: 'Categories', count: stats.categories, icon: FolderTree },
+    { name: 'Customer Enquiries', count: stats.enquiries, icon: Inbox },
+    { name: 'Active Services', count: stats.services, icon: Wrench },
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 font-sans">
       {/* Title */}
       <div>
-        <h1 className="text-2xl font-bold font-display text-slate-100">Executive Overview</h1>
-        <p className="text-xs text-slate-400 mt-1">Real-time status of catalog items, lead inquiries, and media assets.</p>
+        <h1 className="text-2xl font-extrabold font-display text-[#113F67]">Executive Overview</h1>
+        <p className="text-xs text-slate-500 font-medium mt-1">Real-time status of catalog items, lead inquiries, and media assets.</p>
       </div>
 
       {/* Stats Cards */}
@@ -60,12 +60,12 @@ export function Dashboard() {
         {statCards.map((card) => {
           const Icon = card.icon;
           return (
-            <div key={card.name} className={`p-6 rounded-2xl border ${card.bg} space-y-3`}>
+            <div key={card.name} className="p-6 rounded-2xl bg-white border border-[#87C0CD]/40 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{card.name}</span>
-                <Icon className={`w-5 h-5 ${card.color}`} />
+                <span className="text-xs font-bold text-[#113F67] uppercase tracking-wider">{card.name}</span>
+                <Icon className="w-5 h-5 text-[#226597]" />
               </div>
-              <div className="text-3xl font-extrabold font-display text-slate-100">
+              <div className="text-3xl font-extrabold font-display text-[#113F67]">
                 {loading ? '...' : card.count}
               </div>
             </div>
@@ -74,15 +74,15 @@ export function Dashboard() {
       </div>
 
       {/* Recent Customer Enquiries Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-          <h2 className="text-base font-bold font-display text-slate-100">Recent Lead Enquiries</h2>
-          <span className="text-xs text-slate-400">Latest 5 submissions</span>
+      <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-6 space-y-4 shadow-sm">
+        <div className="flex items-center justify-between border-b border-[#87C0CD]/30 pb-4">
+          <h2 className="text-base font-bold font-display text-[#113F67]">Recent Lead Enquiries</h2>
+          <span className="text-xs text-slate-500 font-medium">Latest 5 submissions</span>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-300">
-            <thead className="bg-slate-950/60 uppercase text-[10px] tracking-wider text-slate-400 border-b border-slate-800">
+          <table className="w-full text-left text-xs text-[#113F67]">
+            <thead className="bg-[#F3F9FB] uppercase text-[10px] tracking-wider text-[#113F67] border-b border-[#87C0CD]/30 font-bold">
               <tr>
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Email</th>
@@ -92,29 +92,29 @@ export function Dashboard() {
                 <th className="px-4 py-3 text-right">Date</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-[#87C0CD]/20">
               {recentEnquiries.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500 font-medium">
                     No enquiries logged yet.
                   </td>
                 </tr>
               ) : (
-                recentEnquiries.map((e) => (
-                  <tr key={e.id} className="hover:bg-slate-800/40 transition">
-                    <td className="px-4 py-3 font-semibold text-slate-200">{e.customer_name}</td>
-                    <td className="px-4 py-3 text-slate-400">{e.email}</td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-[10px] font-mono text-cyan-300">
-                        {e.source_type}
+                recentEnquiries.map((enq) => (
+                  <tr key={enq.id} className="hover:bg-[#F3F9FB]/60 transition">
+                    <td className="px-4 py-3.5 font-bold text-[#113F67]">{enq.customer_name}</td>
+                    <td className="px-4 py-3.5 text-slate-600">{enq.email}</td>
+                    <td className="px-4 py-3.5">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E4F1F5] text-[#226597] border border-[#87C0CD]/40">
+                        {enq.source_type}
                       </span>
                     </td>
-                    <td className="px-4 py-3 max-w-xs truncate text-slate-300">{e.requirement}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={e.status} />
+                    <td className="px-4 py-3.5 text-slate-600 max-w-xs truncate">{enq.requirement}</td>
+                    <td className="px-4 py-3.5">
+                      <StatusBadge status={enq.status} />
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-500 text-[11px]">
-                      {new Date(e.created_at).toLocaleDateString()}
+                    <td className="px-4 py-3.5 text-right text-slate-500 font-mono text-[11px]">
+                      {new Date(enq.created_at).toLocaleDateString()}
                     </td>
                   </tr>
                 ))

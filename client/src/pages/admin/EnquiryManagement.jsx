@@ -87,16 +87,18 @@ export function EnquiryManagement() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       {/* Filter Bar */}
-      <div className="flex items-center space-x-3 bg-slate-900 p-4 rounded-2xl border border-slate-800">
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Filter by Status:</span>
+      <div className="flex items-center space-x-3 bg-white p-4 rounded-2xl border border-[#87C0CD]/40 shadow-sm">
+        <span className="text-xs font-bold text-[#113F67] uppercase tracking-wider">Filter by Status:</span>
         {['', 'NEW', 'CONTACTED', 'IN_PROGRESS', 'COMPLETED', 'CLOSED'].map((st) => (
           <button
             key={st}
             onClick={() => setStatusFilter(st)}
             className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
-              statusFilter === st ? 'bg-cyan-500 text-slate-950' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+              statusFilter === st
+                ? 'bg-[#226597] text-white shadow-sm'
+                : 'bg-[#F3F9FB] text-[#113F67] hover:bg-[#E4F1F5] border border-[#87C0CD]/40'
             }`}
           >
             {st || 'ALL'}
@@ -128,15 +130,15 @@ export function EnquiryManagement() {
       >
         {selectedEnquiry && (
           <div className="space-y-4">
-            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-2 text-slate-300">
+            <div className="p-4 rounded-2xl bg-[#F3F9FB] border border-[#87C0CD]/40 text-xs space-y-2 text-[#113F67]">
               <p><strong>Customer:</strong> {selectedEnquiry.customer_name} ({selectedEnquiry.email})</p>
               <p><strong>Company:</strong> {selectedEnquiry.company_name || 'N/A'}</p>
               <p><strong>Phone:</strong> {selectedEnquiry.phone || 'N/A'}</p>
               <p><strong>Location:</strong> {selectedEnquiry.city || ''} {selectedEnquiry.country || ''}</p>
               <p><strong>Subject:</strong> {selectedEnquiry.subject || 'N/A'}</p>
-              <div className="pt-2 border-t border-slate-800">
-                <span className="block font-bold text-slate-200 mb-1">Customer Requirement Details:</span>
-                <p className="bg-slate-900 p-3 rounded-xl border border-slate-800 text-slate-200 whitespace-pre-line">
+              <div className="pt-2 border-t border-[#87C0CD]/30">
+                <span className="block font-bold text-[#113F67] mb-1">Customer Requirement Details:</span>
+                <p className="bg-white p-3 rounded-xl border border-[#87C0CD]/30 text-[#113F67] whitespace-pre-line leading-relaxed">
                   {selectedEnquiry.requirement}
                 </p>
               </div>

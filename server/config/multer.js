@@ -2,7 +2,7 @@ import multer from 'multer';
 import path from 'path';
 import { AppError } from '../middlewares/error.middleware.js';
 
-// Memory storage to process images with Sharp before saving
+// Memory storage to process images with Sharp & PDFs with pdf-lib before saving
 const storage = multer.memoryStorage();
 
 // File filter for images (jpg, jpeg, png, webp)
@@ -39,16 +39,7 @@ export const uploadMultipleImagesMulter = multer({
 });
 
 export const uploadDocumentMulter = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, path.join(process.cwd(), 'server', 'uploads', 'documents'));
-    },
-    filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      const ext = path.extname(file.originalname).toLowerCase();
-      cb(null, `${uniqueSuffix}${ext}`);
-    },
-  }),
+  storage,
   limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB limit
   fileFilter: documentFilter,
 });

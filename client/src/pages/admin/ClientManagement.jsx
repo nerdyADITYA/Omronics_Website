@@ -61,7 +61,7 @@ export function ClientManagement() {
     {
       header: 'Logo',
       key: 'logo_url',
-      render: (val) => (val ? <div className="w-16 h-10 bg-white p-1 rounded border border-slate-700 flex items-center justify-center"><img src={val} alt="" className="w-full h-full object-contain" /></div> : '-'),
+      render: (val) => (val ? <div className="w-16 h-10 bg-white p-1 rounded border border-[#87C0CD]/30 flex items-center justify-center"><img src={val} alt="" className="w-full h-full object-contain" /></div> : '-'),
     },
     { header: 'Client Name', key: 'client_name' },
     { header: 'Website', key: 'website_url' },
@@ -110,14 +110,13 @@ export function ClientManagement() {
       <FormModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingClient ? `Edit Client: ${editingClient.client_name}` : 'Create New Client'}
+        title={editingClient ? 'Edit Client Record' : 'Add New Client / OEM Partner'}
       >
         <DynamicForm
           fields={formFields}
-          initialValues={editingClient || {}}
+          initialValues={editingClient || { status: 'ACTIVE', sort_order: 0 }}
           onSubmit={handleCreateOrUpdate}
           onCancel={() => setModalOpen(false)}
-          submitText={editingClient ? 'Update Client' : 'Create Client'}
         />
       </FormModal>
     </div>

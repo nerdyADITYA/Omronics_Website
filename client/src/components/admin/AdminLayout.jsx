@@ -40,24 +40,24 @@ export function AdminLayout() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex">
+    <div className="min-h-screen bg-[#F3F9FB] text-[#113F67] flex font-sans">
       {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col justify-between shrink-0">
+      <aside className="w-64 bg-[#113F67] border-r border-[#87C0CD]/30 text-white flex flex-col justify-between shrink-0 shadow-lg">
         <div>
           {/* Brand Header */}
-          <div className="p-6 border-b border-slate-800 flex items-center space-x-3">
+          <div className="p-6 border-b border-[#87C0CD]/20 flex items-center space-x-3">
             {settings?.logo ? (
-              <img src={settings.logo} alt={settings.company_name || 'Omronics'} className="h-9 max-w-[170px] object-contain rounded-lg" />
+              <img src={settings.logo} alt={settings.company_name || 'Omronics'} className="h-9 max-w-[170px] object-contain rounded-lg bg-white p-1" />
             ) : (
               <>
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 p-0.5">
-                  <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                    <Cpu className="w-4 h-4 text-cyan-400" />
+                <div className="w-9 h-9 rounded-xl bg-[#87C0CD] p-0.5 shadow-md">
+                  <div className="w-full h-full bg-[#113F67] rounded-[10px] flex items-center justify-center">
+                    <Cpu className="w-4 h-4 text-[#87C0CD]" />
                   </div>
                 </div>
                 <div>
-                  <span className="text-base font-extrabold font-display text-gradient">{settings?.company_name || 'OMRONICS'}</span>
-                  <span className="block text-[9px] uppercase tracking-widest text-slate-400">Admin CMS</span>
+                  <span className="text-base font-extrabold font-display text-white">{settings?.company_name || 'OMRONICS'}</span>
+                  <span className="block text-[9px] uppercase tracking-widest text-[#87C0CD] font-semibold">Admin CMS</span>
                 </div>
               </>
             )}
@@ -72,10 +72,10 @@ export function AdminLayout() {
                   key={item.path}
                   to={item.path}
                   className={({ isActive }) =>
-                    `flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
+                    `flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                       isActive
-                        ? 'bg-gradient-to-r from-cyan-500/20 to-blue-600/20 text-cyan-400 border border-cyan-500/30'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                        ? 'bg-[#226597] text-white shadow-md'
+                        : 'text-slate-300 hover:text-white hover:bg-[#226597]/40'
                     }`
                   }
                 >
@@ -88,50 +88,42 @@ export function AdminLayout() {
         </div>
 
         {/* User Info & Logout */}
-        <div className="p-4 border-t border-slate-800 space-y-3">
+        <div className="p-4 border-t border-[#87C0CD]/20 space-y-3">
           <div className="flex items-center justify-between px-2">
             <div className="truncate">
-              <span className="block text-xs font-bold text-slate-200 truncate">{user?.fullName || user?.name || 'Admin'}</span>
-              <span className="block text-[10px] text-slate-500 truncate">{user?.email}</span>
+              <span className="block text-xs font-bold text-white truncate">{user?.fullName || user?.name || 'Admin'}</span>
+              <span className="block text-[10px] text-slate-300 truncate">{user?.email}</span>
             </div>
-            <span className="px-2 py-0.5 text-[9px] font-bold bg-cyan-950 text-cyan-400 rounded border border-cyan-800">
+            <span className="px-2 py-0.5 text-[9px] font-bold bg-[#87C0CD] text-[#113F67] rounded shadow-xs">
               {user?.role || 'ADMIN'}
             </span>
           </div>
 
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center space-x-2 py-2 px-3 bg-slate-800 hover:bg-rose-950 hover:text-rose-300 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 hover:border-rose-800 transition"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Logout</span>
-          </button>
+          <div className="pt-2 flex items-center justify-between gap-2">
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 text-center py-2 px-3 bg-[#226597]/50 hover:bg-[#226597] text-white text-[11px] font-bold rounded-lg transition flex items-center justify-center space-x-1"
+            >
+              <span>View Site</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+
+            <button
+              onClick={handleLogout}
+              className="p-2 text-rose-300 hover:text-rose-100 hover:bg-rose-900/50 rounded-lg transition"
+              title="Logout"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Header */}
-        <header className="h-16 bg-slate-900/60 border-b border-slate-800 px-6 flex items-center justify-between backdrop-blur-md sticky top-0 z-30">
-          <div className="flex items-center space-x-2 text-xs text-slate-400">
-            <span>Admin Portal</span>
-            <span>/</span>
-            <span className="text-cyan-400 font-bold">Control Panel</span>
-          </div>
-
-          <a
-            href="/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700 transition"
-          >
-            <span>Live Website</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        </header>
-
-        {/* Dynamic Route Content */}
-        <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
+      {/* Main Content Viewport */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <main className="p-8 flex-1">
           <Outlet />
         </main>
       </div>

@@ -47,11 +47,18 @@ export function ProductManagement() {
   const handleEdit = async (row) => {
     try {
       const res = await api.get(`/products/${row.id}`);
-      if (res.success && res.data) {
-        setEditingProduct(res.data);
-      } else {
-        setEditingProduct(row);
+      let prodData = res.success && res.data ? res.data : { ...row };
+
+      if (Array.isArray(prodData.documents) && prodData.documents.length > 0) {
+        const doc = prodData.documents[0];
+        prodData.pdf_catalog = {
+          url: doc.document_url,
+          filename: doc.document_name,
+          fileSize: doc.file_size,
+        };
       }
+
+      setEditingProduct(prodData);
       setModalOpen(true);
     } catch (err) {
       console.error('Failed to load detail for editing', err);
@@ -91,11 +98,12 @@ export function ProductManagement() {
     {
       header: 'Image',
       key: 'thumbnail_image',
-      render: (val) => (val ? <img src={val} alt="" className="w-10 h-10 object-contain rounded bg-slate-950 border border-slate-800" /> : '-'),
+      render: (val) => (val ? <img src={val} alt="" className="w-10 h-10 object-contain rounded bg-white border border-[#87C0CD]/30" /> : '-'),
     },
     { header: 'Product Name', key: 'product_name' },
     { header: 'Category', key: 'category_name' },
     { header: 'Model Number', key: 'model_number' },
+    { header: 'Catalog PDF', key: 'datasheet_available', render: (val) => (val ? 'PDF Attached' : 'None') },
     { header: 'Featured', key: 'featured', render: (val) => (val ? 'Yes' : 'No') },
     { header: 'Status', key: 'status' },
   ];
@@ -116,8 +124,8 @@ export function ProductManagement() {
     { name: 'specifications', label: 'Technical Specifications', type: 'textarea', rows: 3 },
     { name: 'thumbnail_image', label: 'Thumbnail Image (Primary)', type: 'image', folder: 'products' },
     { name: 'images', label: 'Product Gallery Images (Select Multiple Files)', type: 'multi-image', folder: 'products' },
+    { name: 'pdf_catalog', label: 'Product Catalog / Datasheet PDF', type: 'document', folder: 'documents' },
     { name: 'featured', label: 'Display on Home Page Featured List', type: 'checkbox' },
-    { name: 'datasheet_available', label: 'Has Downloadable Datasheet', type: 'checkbox' },
     {
       name: 'status',
       label: 'Status',

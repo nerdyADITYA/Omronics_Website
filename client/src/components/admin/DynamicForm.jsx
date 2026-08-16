@@ -1,137 +1,177 @@
 import React, { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { MediaUploader } from './MediaUploader';
 import { MultiMediaUploader } from './MultiMediaUploader';
 
-export function DynamicForm({ fields = [], initialValues = {}, onSubmit, onCancel, submitText = 'Save' }) {
+export function DynamicForm({
+  fields = [],
+  initialValues = {},
+  onSubmit,
+  onCancel,
+  submitText = 'Save',
+  isSubmitting: externalSubmitting,
+}) {
   const [formData, setFormData] = useState(initialValues);
+  const [internalSubmitting, setInternalSubmitting] = useState(false);
+
+  const isSubmitting = externalSubmitting !== undefined ? externalSubmitting : internalSubmitting;
 
   const handleChange = (name, value) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    if (isSubmitting) return;
+
+    try {
+      setInternalSubmitting(true);
+      await onSubmit(formData);
+    } catch (err) {
+      console.error('Form submission error:', err);
+    } finally {
+      setInternalSubmitting(false);
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {fields.map((field) => {
-        const value = formData[field.name] ?? field.defaultValue ?? '';
+    <div className="relative">
+      {/* Submitting Glass Loading Overlay */}
+      {isSubmitting && (
+        <div className="absolute inset-0 z-20 bg-white/80 backdrop-blur-[2px] rounded-xl flex flex-col items-center justify-center space-y-3 p-6 animate-in fade-in duration-200">
+          <Loader2 className="w-8 h-8 text-[#226597] animate-spin" />
+          <div className="text-center space-y-1">
+            <p className="text-xs font-extrabold text-[#113F67] uppercase tracking-wider">Updating Database</p>
+            <p className="text-[11px] text-slate-500 font-medium">Please wait while changes are processed and saved...</p>
+          </div>
+        </div>
+      )}
 
-        if (field.type === 'multi-image') {
-          return (
-            <MultiMediaUploader
-              key={field.name}
-              label={field.label}
-              value={value}
-              onChange={(val) => handleChange(field.name, val)}
-              folder={field.folder || 'products'}
-            />
-          );
-        }
+      <form onSubmit={handleSubmit} className="space-y-4 font-sans">
+        {fields.map((field) => {
+          const value = formData[field.name] ?? field.defaultValue ?? '';
 
-        if (field.type === 'image' || field.type === 'document') {
-          return (
-            <MediaUploader
-              key={field.name}
-              label={field.label}
-              value={value}
-              onChange={(val) => handleChange(field.name, val)}
-              folder={field.folder || 'general'}
-              isDocument={field.type === 'document'}
-            />
-          );
-        }
+          if (field.type === 'multi-image') {
+            return (
+              <MultiMediaUploader
+                key={field.name}
+                label={field.label}
+                value={value}
+                onChange={(val) => handleChange(field.name, val)}
+                folder={field.folder || 'products'}
+              />
+            );
+          }
 
-        if (field.type === 'textarea') {
+          if (field.type === 'image' || field.type === 'document') {
+            return (
+              <MediaUploader
+                key={field.name}
+                label={field.label}
+                value={value}
+                onChange={(val) => handleChange(field.name, val)}
+                folder={field.folder || 'general'}
+                isDocument={field.type === 'document'}
+              />
+            );
+          }
+
+          if (field.type === 'textarea') {
+            return (
+              <div key={field.name} className="space-y-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#113F67]">
+                  {field.label}
+                </label>
+                <textarea
+                  rows={field.rows || 4}
+                  value={value}
+                  disabled={isSubmitting}
+                  onChange={(e) => handleChange(field.name, e.target.value)}
+                  placeholder={field.placeholder}
+                  className="w-full bg-[#F3F9FB] border border-[#87C0CD]/40 rounded-lg px-3 py-2 text-xs text-[#113F67] focus:outline-none focus:border-[#226597] transition disabled:opacity-60"
+                />
+              </div>
+            );
+          }
+
+          if (field.type === 'select') {
+            return (
+              <div key={field.name} className="space-y-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#113F67]">
+                  {field.label}
+                </label>
+                <select
+                  value={value}
+                  disabled={isSubmitting}
+                  onChange={(e) => handleChange(field.name, e.target.value)}
+                  className="w-full bg-[#F3F9FB] border border-[#87C0CD]/40 rounded-lg px-3 py-2 text-xs text-[#113F67] focus:outline-none focus:border-[#226597] transition font-medium disabled:opacity-60"
+                >
+                  {field.options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          }
+
+          if (field.type === 'checkbox') {
+            return (
+              <div key={field.name} className="flex items-center space-x-3 pt-2">
+                <input
+                  type="checkbox"
+                  id={field.name}
+                  checked={!!value}
+                  disabled={isSubmitting}
+                  onChange={(e) => handleChange(field.name, e.target.checked)}
+                  className="w-4 h-4 rounded bg-[#F3F9FB] border-[#87C0CD]/60 text-[#226597] focus:ring-[#226597] disabled:opacity-60"
+                />
+                <label htmlFor={field.name} className="text-xs font-bold text-[#113F67] cursor-pointer">
+                  {field.label}
+                </label>
+              </div>
+            );
+          }
+
           return (
             <div key={field.name} className="space-y-1">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <label className="block text-xs font-bold uppercase tracking-wider text-[#113F67]">
                 {field.label}
               </label>
-              <textarea
-                rows={field.rows || 4}
+              <input
+                type={field.type || 'text'}
                 value={value}
+                disabled={isSubmitting}
                 onChange={(e) => handleChange(field.name, e.target.value)}
                 placeholder={field.placeholder}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition"
+                className="w-full bg-[#F3F9FB] border border-[#87C0CD]/40 rounded-lg px-3 py-2 text-xs text-[#113F67] focus:outline-none focus:border-[#226597] transition disabled:opacity-60"
               />
             </div>
           );
-        }
+        })}
 
-        if (field.type === 'select') {
-          return (
-            <div key={field.name} className="space-y-1">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                {field.label}
-              </label>
-              <select
-                value={value}
-                onChange={(e) => handleChange(field.name, e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition"
-              >
-                {field.options.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          );
-        }
-
-        if (field.type === 'checkbox') {
-          return (
-            <div key={field.name} className="flex items-center space-x-3 pt-2">
-              <input
-                type="checkbox"
-                id={field.name}
-                checked={!!value}
-                onChange={(e) => handleChange(field.name, e.target.checked)}
-                className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-cyan-500"
-              />
-              <label htmlFor={field.name} className="text-sm font-medium text-slate-300 cursor-pointer">
-                {field.label}
-              </label>
-            </div>
-          );
-        }
-
-        return (
-          <div key={field.name} className="space-y-1">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-              {field.label}
-            </label>
-            <input
-              type={field.type || 'text'}
-              value={value}
-              onChange={(e) => handleChange(field.name, e.target.value)}
-              placeholder={field.placeholder}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition"
-            />
-          </div>
-        );
-      })}
-
-      <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
-        {onCancel && (
+        <div className="flex items-center justify-end space-x-3 pt-4 border-t border-[#87C0CD]/30">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={isSubmitting}
+              className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-[#113F67] bg-[#E4F1F5] hover:bg-[#CBE2E8] rounded-lg transition disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          )}
           <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-lg transition"
+            type="submit"
+            disabled={isSubmitting}
+            className="px-5 py-2 text-xs font-bold text-white bg-[#226597] hover:bg-[#113F67] rounded-lg shadow transition flex items-center space-x-2 disabled:opacity-75 cursor-pointer"
           >
-            Cancel
+            {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />}
+            <span>{isSubmitting ? 'Saving...' : submitText}</span>
           </button>
-        )}
-        <button
-          type="submit"
-          className="px-5 py-2 text-xs font-semibold text-slate-950 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 rounded-lg shadow-lg shadow-cyan-500/20 transition"
-        >
-          {submitText}
-        </button>
-      </div>
-    </form>
+        </div>
+      </form>
+    </div>
   );
 }

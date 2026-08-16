@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DynamicForm } from '../../components/admin/DynamicForm';
 import api from '../../services/api';
-
 import { useSettings } from '../../context/SettingsContext';
 
 export function SettingsManagement() {
@@ -52,25 +51,25 @@ export function SettingsManagement() {
   ];
 
   if (loading) {
-    return <div className="text-center py-20 text-slate-500 text-xs">Loading Settings...</div>;
+    return <div className="text-center py-20 text-slate-500 font-medium text-xs">Loading Settings...</div>;
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+    <div className="max-w-4xl mx-auto space-y-6 font-sans">
+      <div className="flex items-center justify-between border-b border-[#87C0CD]/30 pb-4">
         <div>
-          <h1 className="text-2xl font-bold font-display text-slate-100">Global Website Settings</h1>
-          <p className="text-xs text-slate-400">Configure global company information, contact numbers, and SEO defaults.</p>
+          <h1 className="text-2xl font-extrabold font-display text-[#113F67]">Global Website Settings</h1>
+          <p className="text-xs text-slate-500 font-medium">Configure global company information, contact numbers, and SEO defaults.</p>
         </div>
       </div>
 
       {message && (
-        <div className="p-4 rounded-xl bg-emerald-950/60 border border-emerald-800/60 text-xs text-emerald-300 font-semibold">
+        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 font-bold shadow-xs">
           {message}
         </div>
       )}
 
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl">
+      <div className="bg-white border border-[#87C0CD]/40 rounded-3xl p-8 shadow-sm">
         <DynamicForm
           fields={fields}
           initialValues={settings || {}}

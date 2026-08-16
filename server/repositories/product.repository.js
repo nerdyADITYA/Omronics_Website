@@ -139,6 +139,11 @@ export class ProductRepository extends BaseRepository {
   }
 
   // --- Product Documents ---
+  async getDocumentById(docId) {
+    const rows = await query('SELECT * FROM product_documents WHERE id = ? LIMIT 1', [docId]);
+    return rows.length > 0 ? rows[0] : null;
+  }
+
   async getDocuments(productId) {
     return query('SELECT * FROM product_documents WHERE product_id = ? ORDER BY display_order ASC', [productId]);
   }
@@ -147,10 +152,20 @@ export class ProductRepository extends BaseRepository {
     await query('DELETE FROM product_documents WHERE product_id = ?', [productId]);
     for (let i = 0; i < documents.length; i++) {
       const doc = documents[i];
-      await query(
-        'INSERT INTO product_documents (product_id, document_name, document_url, document_type, display_order) VALUES (?, ?, ?, ?, ?)',
-        [productId, doc.document_name, doc.document_url, doc.document_type || 'PDF', doc.display_order || i]
-      );
+      const docUrl = typeof doc === 'string' ? doc : doc.document_url;
+      if (docUrl) {
+        await query(
+          'INSERT INTO product_documents (product_id, document_name, document_url, document_type, file_size, display_order) VALUES (?, ?, ?, ?, ?, ?)',
+          [
+            productId,
+            doc.document_name || 'Product Catalog PDF',
+            docUrl,
+            doc.document_type || 'CATALOGUE',
+            doc.file_size || null,
+            doc.display_order || i,
+          ]
+        );
+      }
     }
   }
 }
