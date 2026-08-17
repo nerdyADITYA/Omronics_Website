@@ -6,9 +6,18 @@ export function MediaUploader({ value, onChange, folder = 'general', isDocument 
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fileUrl = typeof value === 'string' ? value : value?.url || value?.document_url || '';
-  const fileName = typeof value === 'object' ? value?.filename || value?.document_name || '' : '';
-  const fileSize = typeof value === 'object' ? value?.fileSize || value?.file_size || '' : '';
+  let cleanValue = value;
+  if (typeof value === 'string' && value.trim().startsWith('{')) {
+    try {
+      cleanValue = JSON.parse(value.trim());
+    } catch (e) {
+      cleanValue = value;
+    }
+  }
+
+  const fileUrl = typeof cleanValue === 'string' ? cleanValue : cleanValue?.url || cleanValue?.document_url || '';
+  const fileName = typeof cleanValue === 'object' ? cleanValue?.filename || cleanValue?.document_name || '' : '';
+  const fileSize = typeof cleanValue === 'object' ? cleanValue?.fileSize || cleanValue?.file_size || '' : '';
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];

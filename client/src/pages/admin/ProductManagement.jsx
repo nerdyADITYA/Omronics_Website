@@ -104,6 +104,7 @@ export function ProductManagement() {
     { header: 'Category', key: 'category_name' },
     { header: 'Model Number', key: 'model_number' },
     { header: 'Catalog PDF', key: 'datasheet_available', render: (val) => (val ? 'PDF Attached' : 'None') },
+    { header: 'Demo Video', key: 'video_url', render: (val) => (val ? <span className="text-emerald-700 font-bold">Video Link</span> : 'None') },
     { header: 'Featured', key: 'featured', render: (val) => (val ? 'Yes' : 'No') },
     { header: 'Status', key: 'status' },
   ];
@@ -125,6 +126,7 @@ export function ProductManagement() {
     { name: 'thumbnail_image', label: 'Thumbnail Image (Primary)', type: 'image', folder: 'products' },
     { name: 'images', label: 'Product Gallery Images (Select Multiple Files)', type: 'multi-image', folder: 'products' },
     { name: 'pdf_catalog', label: 'Product Catalog / Datasheet PDF', type: 'document', folder: 'documents' },
+    { name: 'video_url', label: 'YouTube Demo Video Link (URL)', type: 'text', placeholder: 'e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
     { name: 'featured', label: 'Display on Home Page Featured List', type: 'checkbox' },
     {
       name: 'status',

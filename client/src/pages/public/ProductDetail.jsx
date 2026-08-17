@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
-import { Cpu, FileText, Download, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react';
+import { Cpu, FileText, Download, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, X, Video } from 'lucide-react';
 import { Header } from '../../components/common/Header';
 import { Footer } from '../../components/common/Footer';
 import { SEOManager } from '../../components/common/SEOManager';
 import { LeadModal } from '../../components/common/LeadModal';
 import api from '../../services/api';
+
+// Helper to extract YouTube Embed URL
+function getYouTubeEmbedUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? `https://www.youtube.com/embed/${match[2]}` : null;
+}
 
 // Helper to render bold markdown syntax like **text**
 function renderFormattedText(text) {
@@ -48,97 +56,79 @@ function renderKeyFeatures(featuresText) {
   );
 }
 
-// Helper to render specifications as clean HTML block table
-function renderSpecificationsTable(specText) {
-  if (!specText) return null;
+// Helper to parse markdown-style pipe tables into structured block tables
+function renderSpecificationsTable(specsText) {
+  if (!specsText) return null;
 
-  const lines = specText.split('\n').map((l) => l.trim()).filter(Boolean);
+  const lines = specsText
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.match(/^\|?\s*:?-+:?\s*\|/));
 
-  // Check for Markdown table format (lines containing '|')
-  const tableLines = lines.filter((l) => l.includes('|'));
-  if (tableLines.length >= 2) {
-    const rawRows = [];
-    tableLines.forEach((line) => {
-      if (/^[|:\s-]+$/.test(line.replace(/\|/g, ''))) return;
-
+  const tableRows = [];
+  for (const line of lines) {
+    if (line.includes('|')) {
       const cells = line
         .split('|')
         .map((c) => c.trim())
-        .filter((c, idx, arr) => !(idx === 0 && c === '') && !(idx === arr.length - 1 && c === ''));
-
-      if (cells.length > 0) {
-        rawRows.push(cells);
+        .filter((c, idx, arr) => idx > 0 && idx < arr.length - 1);
+      if (cells.length >= 2) {
+        tableRows.push({ param: cells[0], detail: cells.slice(1).join(' | ') });
       }
-    });
-
-    if (rawRows.length > 0) {
-      const hasHeader = tableLines[1] && /^[|:\s-]+$/.test(tableLines[1].replace(/\|/g, ''));
-      const headerRow = hasHeader ? rawRows[0] : null;
-      const bodyRows = hasHeader ? rawRows.slice(1) : rawRows;
-
-      return (
-        <div className="overflow-x-auto rounded-2xl border border-[#87C0CD]/40 bg-white shadow-sm font-sans mt-2">
-          <table className="w-full border-collapse text-left text-xs sm:text-sm text-[#113F67]">
-            {headerRow && (
-              <thead>
-                <tr className="bg-[#E4F1F5] text-[#113F67] border-b border-[#87C0CD]/40">
-                  {headerRow.map((col, idx) => (
-                    <th key={idx} className="px-5 py-3.5 border border-[#87C0CD]/30 font-extrabold uppercase text-[11px] tracking-wider">
-                      {renderFormattedText(col)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-            )}
-            <tbody className="divide-y divide-[#87C0CD]/20">
-              {bodyRows.map((row, rIdx) => (
-                <tr key={rIdx} className="hover:bg-[#F3F9FB]/70 transition">
-                  {row.map((cell, cIdx) => (
-                    <td key={cIdx} className={`px-5 py-3.5 border border-[#87C0CD]/30 font-medium ${cIdx === 0 ? 'bg-[#F3F9FB]/40' : ''}`}>
-                      {renderFormattedText(cell)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
+    } else if (line.includes(':')) {
+      const parts = line.split(':');
+      tableRows.push({ param: parts[0].trim(), detail: parts.slice(1).join(':').trim() });
     }
   }
 
-  // Fallback text display
+  if (tableRows.length === 0) {
+    return <div className="text-xs text-slate-600 whitespace-pre-line leading-relaxed">{renderFormattedText(specsText)}</div>;
+  }
+
+  const headerRow = tableRows[0];
+  const isHeader = headerRow.param.toLowerCase().includes('spec') || headerRow.param.toLowerCase().includes('parameter');
+  const dataRows = isHeader ? tableRows.slice(1) : tableRows;
+
   return (
-    <div className="text-xs sm:text-sm text-slate-600 whitespace-pre-line leading-relaxed break-words">
-      {renderFormattedText(specText)}
+    <div className="overflow-hidden rounded-2xl border border-[#87C0CD]/40 shadow-xs font-sans">
+      <table className="w-full text-left text-xs border-collapse">
+        <thead className="bg-[#E4F1F5] text-[#113F67] font-bold uppercase tracking-wider text-[11px] border-b border-[#87C0CD]/40">
+          <tr>
+            <th className="px-5 py-3.5 w-1/3 border-r border-[#87C0CD]/30">{isHeader ? headerRow.param : 'Specification Parameter'}</th>
+            <th className="px-5 py-3.5">{isHeader ? headerRow.detail : 'Technical Details'}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[#87C0CD]/20 bg-white">
+          {dataRows.map((row, idx) => (
+            <tr key={idx} className={idx % 2 === 0 ? 'bg-white hover:bg-[#F3F9FB]/60 transition' : 'bg-[#F3F9FB]/40 hover:bg-[#F3F9FB]/80 transition'}>
+              <td className="px-5 py-3.5 font-bold text-[#113F67] border-r border-[#87C0CD]/20 align-top">{renderFormattedText(row.param)}</td>
+              <td className="px-5 py-3.5 text-slate-600 font-medium leading-relaxed align-top">{renderFormattedText(row.detail)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-// Helper to render Applications
-function renderApplications(appText) {
-  if (!appText) return null;
-  const items = appText
+// Helper to render applications
+function renderApplications(appsText) {
+  if (!appsText) return null;
+  const items = appsText
     .split('\n')
     .map((line) => line.trim().replace(/^[-*•]\s*/, ''))
     .filter(Boolean);
 
-  if (items.length > 1) {
-    return (
-      <ul className="space-y-2 text-xs sm:text-sm text-slate-600 pt-1 font-sans">
-        {items.map((item, idx) => (
-          <li key={idx} className="flex items-start space-x-2.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#226597] shrink-0 mt-2 shadow-xs" />
-            <span className="leading-relaxed font-medium">{renderFormattedText(item)}</span>
-          </li>
-        ))}
-      </ul>
-    );
-  }
+  if (items.length === 0) return null;
 
   return (
-    <div className="text-xs sm:text-sm text-slate-600 whitespace-pre-line leading-relaxed break-words">
-      {renderFormattedText(appText)}
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-sans">
+      {items.map((item, idx) => (
+        <div key={idx} className="p-3.5 rounded-xl bg-white border border-[#87C0CD]/30 flex items-center space-x-3 shadow-xs">
+          <div className="w-2 h-2 rounded-full bg-[#226597] shrink-0" />
+          <span className="text-xs font-semibold text-[#113F67]">{renderFormattedText(item)}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -147,9 +137,10 @@ export function ProductDetail() {
   const { slug } = useParams();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
 
   useEffect(() => {
     async function fetchProduct() {
@@ -158,7 +149,6 @@ export function ProductDetail() {
         const res = await api.get(`/products/slug/${slug}`);
         if (res.success && res.data) {
           setProduct(res.data);
-          setActiveImageIndex(0);
         }
       } catch (err) {
         console.error('Failed to load product details', err);
@@ -174,7 +164,7 @@ export function ProductDetail() {
       <div className="min-h-screen bg-[#F3F9FB] text-[#113F67] flex items-center justify-center font-sans">
         <div className="text-center space-y-2">
           <Cpu className="w-8 h-8 text-[#226597] animate-spin mx-auto" />
-          <p className="text-xs text-slate-500 font-semibold">Loading Product Specifications...</p>
+          <p className="text-xs text-slate-500 font-semibold">Loading Technical Datasheet...</p>
         </div>
       </div>
     );
@@ -196,36 +186,47 @@ export function ProductDetail() {
     );
   }
 
-  // Unified Gallery Images List
-  const allImages = [];
+  const galleryImages = [];
   if (product.thumbnail_image) {
-    allImages.push({ image_url: product.thumbnail_image, alt_text: product.product_name });
+    galleryImages.push(product.thumbnail_image);
   }
-  if (Array.isArray(product.images)) {
+  if (Array.isArray(product.images) && product.images.length > 0) {
     product.images.forEach((img) => {
-      const url = typeof img === 'string' ? img : img.image_url;
-      if (url && !allImages.some((existing) => existing.image_url === url)) {
-        allImages.push({ image_url: url, alt_text: img.alt_text || product.product_name });
+      if (img.image_url && !galleryImages.includes(img.image_url)) {
+        galleryImages.push(img.image_url);
       }
     });
   }
 
+  const currentImageUrl = galleryImages[selectedImageIndex] || null;
+  const embedUrl = getYouTubeEmbedUrl(product.video_url);
+
   const handlePrevImage = () => {
-    setActiveImageIndex((prev) => (prev === 0 ? allImages.length - 1 : prev - 1));
+    setSelectedImageIndex((prev) => (prev === 0 ? galleryImages.length - 1 : prev - 1));
   };
 
   const handleNextImage = () => {
-    setActiveImageIndex((prev) => (prev === allImages.length - 1 ? 0 : prev + 1));
+    setSelectedImageIndex((prev) => (prev === galleryImages.length - 1 ? 0 : prev + 1));
   };
 
   const handleDownloadPdf = (doc, fallbackName) => {
-    const fileName = `${fallbackName.replace(/[^a-zA-Z0-9]/g, '_')}_Catalog.pdf`;
-    const docUrl = doc.document_url;
+    if (!doc || !doc.document_url) return;
 
-    if (docUrl && docUrl.startsWith('data:application/pdf;base64,')) {
+    if (doc.id) {
+      const downloadApiUrl = `/api/v1/products/documents/${doc.id}/download`;
+      const link = document.createElement('a');
+      link.href = downloadApiUrl;
+      link.download = doc.document_name || `${fallbackName}_Catalog.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    if (doc.document_url.startsWith('data:application/pdf;base64,')) {
       try {
-        const base64Data = docUrl.replace(/^data:application\/pdf;base64,/, '');
-        const binaryString = atob(base64Data);
+        const base64Data = doc.document_url.split(',')[1];
+        const binaryString = window.atob(base64Data);
         const len = binaryString.length;
         const bytes = new Uint8Array(len);
         for (let i = 0; i < len; i++) {
@@ -236,156 +237,133 @@ export function ProductDetail() {
 
         const a = document.createElement('a');
         a.href = blobUrl;
-        a.download = fileName;
+        a.download = doc.document_name || `${fallbackName}_Catalog.pdf`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-        return;
+
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
       } catch (err) {
-        console.error('Blob download conversion failed, trying REST API:', err);
+        console.error('Blob PDF conversion error', err);
+        window.open(doc.document_url, '_blank');
       }
+    } else {
+      window.open(doc.document_url, '_blank');
     }
-
-    if (doc.id) {
-      window.open(`/api/v1/products/documents/${doc.id}/download`, '_blank');
-      return;
-    }
-
-    if (docUrl) {
-      const a = document.createElement('a');
-      a.href = docUrl;
-      a.download = fileName;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-  };
-
-  const currentImageUrl = allImages[activeImageIndex]?.image_url || '';
-
-  const schemaJson = {
-    '@context': 'https://schema.org/',
-    '@type': 'Product',
-    name: product.product_name,
-    image: currentImageUrl,
-    description: product.short_description || '',
-    sku: product.model_number || '',
-    category: product.category_name || '',
-    brand: {
-      '@type': 'Brand',
-      name: 'Omronics',
-    },
   };
 
   return (
     <div className="min-h-screen bg-[#F3F9FB] text-[#113F67] flex flex-col font-sans">
       <SEOManager
-        title={product.seo_title || product.product_name}
+        title={product.seo_title || `${product.product_name} | Omronics Industrial Automation`}
         description={product.seo_description || product.short_description}
-        schemaJson={schemaJson}
       />
 
       <Header />
 
       <main className="flex-1 pt-28 pb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Breadcrumb */}
+          {/* Breadcrumb Navigation */}
           <div className="flex items-center space-x-2 text-xs text-slate-500 mb-8">
             <RouterLink to="/products" className="hover:text-[#226597]">Products</RouterLink>
             <span>/</span>
-            <span className="text-[#113F67]">{product.category_name}</span>
-            <span>/</span>
+            {product.category_slug ? (
+              <>
+                <RouterLink to={`/products?category=${product.category_slug}`} className="hover:text-[#226597]">
+                  {product.category_name}
+                </RouterLink>
+                <span>/</span>
+              </>
+            ) : null}
             <span className="text-[#226597] font-bold">{product.product_name}</span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
-            {/* Gallery Image View & Carousel */}
-            <div className="space-y-4">
-              <div className="h-96 sm:h-[420px] bg-white border border-[#87C0CD]/40 rounded-3xl p-6 flex items-center justify-center relative overflow-hidden group shadow-md">
+          {/* Product Hero Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start mb-16">
+            {/* Gallery Image Slider */}
+            <div className="lg:col-span-6 space-y-4">
+              <div className="glass-panel p-4 rounded-3xl border border-[#87C0CD]/40 shadow-md relative overflow-hidden h-96 flex items-center justify-center bg-white group">
                 {currentImageUrl ? (
-                  <img
-                    src={currentImageUrl}
-                    alt={product.product_name}
-                    className="w-full h-full object-contain transition duration-300 group-hover:scale-105"
-                  />
+                  <>
+                    <img
+                      src={currentImageUrl}
+                      alt={product.product_name}
+                      className="w-full h-full object-contain cursor-zoom-in"
+                      onClick={() => setLightboxOpen(true)}
+                    />
+                    <button
+                      onClick={() => setLightboxOpen(true)}
+                      className="absolute top-4 right-4 p-2 rounded-xl bg-[#F3F9FB]/90 border border-[#87C0CD]/40 text-[#113F67] opacity-0 group-hover:opacity-100 transition shadow-sm"
+                      title="Enlarge Image"
+                    >
+                      <Maximize2 className="w-4 h-4" />
+                    </button>
+                  </>
                 ) : (
                   <Cpu className="w-24 h-24 text-[#87C0CD]" />
                 )}
 
-                {allImages.length > 1 && (
+                {galleryImages.length > 1 && (
                   <>
                     <button
                       onClick={handlePrevImage}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/90 hover:bg-[#E4F1F5] border border-[#87C0CD]/50 text-[#113F67] transition shadow-md opacity-0 group-hover:opacity-100"
-                      title="Previous Image"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 border border-[#87C0CD]/40 text-[#113F67] hover:bg-white transition shadow-sm"
                     >
                       <ChevronLeft className="w-5 h-5" />
                     </button>
-
                     <button
                       onClick={handleNextImage}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/90 hover:bg-[#E4F1F5] border border-[#87C0CD]/50 text-[#113F67] transition shadow-md opacity-0 group-hover:opacity-100"
-                      title="Next Image"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 border border-[#87C0CD]/40 text-[#113F67] hover:bg-white transition shadow-sm"
                     >
                       <ChevronRight className="w-5 h-5" />
                     </button>
                   </>
                 )}
-
-                {currentImageUrl && (
-                  <button
-                    onClick={() => setLightboxOpen(true)}
-                    className="absolute top-4 right-4 p-2 rounded-xl bg-white/90 hover:bg-[#226597] hover:text-white text-[#113F67] border border-[#87C0CD]/50 transition shadow"
-                    title="Fullscreen Lightbox"
-                  >
-                    <Maximize2 className="w-4 h-4" />
-                  </button>
-                )}
               </div>
 
-              {allImages.length > 1 && (
-                <div className="flex items-center space-x-3 overflow-x-auto pb-2 scrollbar-thin">
-                  {allImages.map((img, i) => (
+              {galleryImages.length > 1 && (
+                <div className="flex items-center space-x-3 overflow-x-auto pb-2 scrollbar-none">
+                  {galleryImages.map((imgUrl, idx) => (
                     <button
-                      key={i}
-                      onClick={() => setActiveImageIndex(i)}
-                      className={`w-20 h-20 rounded-2xl border p-1 bg-white shrink-0 transition ${
-                        activeImageIndex === i ? 'border-[#226597] ring-2 ring-[#226597]/30 scale-105' : 'border-[#87C0CD]/40 opacity-70 hover:opacity-100'
+                      key={idx}
+                      onClick={() => setSelectedImageIndex(idx)}
+                      className={`w-16 h-16 rounded-xl border-2 overflow-hidden bg-white p-1 transition shrink-0 ${
+                        selectedImageIndex === idx ? 'border-[#226597] shadow-sm scale-105' : 'border-[#87C0CD]/30 opacity-70 hover:opacity-100'
                       }`}
                     >
-                      <img src={img.image_url} alt="" className="w-full h-full object-contain rounded-xl" />
+                      <img src={imgUrl} alt="" className="w-full h-full object-contain" />
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Product Overview */}
-            <div className="space-y-6 min-w-0">
+            {/* Product Specifications Summary */}
+            <div className="lg:col-span-6 space-y-6">
               <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-[#226597] bg-[#E4F1F5] px-3 py-1 rounded-full border border-[#87C0CD]/40">
-                  {product.category_name}
+                <span className="inline-block text-xs font-extrabold uppercase tracking-widest text-[#226597] bg-[#E4F1F5] px-3 py-1 rounded-full border border-[#87C0CD]/40 mb-3">
+                  {product.category_name || 'Industrial Product'}
                 </span>
-                <h1 className="text-3xl sm:text-4xl font-extrabold font-display text-[#113F67] mt-3 break-words leading-tight">
+                <h1 className="text-3xl sm:text-4xl font-extrabold font-display text-[#113F67] leading-tight break-words">
                   {product.product_name}
                 </h1>
                 {product.model_number && (
-                  <div className="mt-2 inline-block text-xs font-mono text-[#226597] bg-[#E4F1F5] border border-[#87C0CD]/50 px-3 py-1 rounded-lg break-all font-semibold">
+                  <p className="text-xs font-mono text-[#226597] font-semibold mt-2 bg-[#E4F1F5] inline-block px-2.5 py-1 rounded-lg border border-[#87C0CD]/40">
                     Model: {product.model_number}
-                  </div>
+                  </p>
                 )}
               </div>
 
               {product.short_description && (
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed break-words whitespace-pre-line">{product.short_description}</p>
+                <p className="text-slate-600 text-xs sm:text-sm leading-relaxed break-words whitespace-pre-line">
+                  {product.short_description}
+                </p>
               )}
 
               {product.description && (
-                <div className="text-xs sm:text-sm text-slate-600 leading-relaxed break-words whitespace-pre-line pt-2 border-t border-[#87C0CD]/30">
+                <p className="text-slate-600 text-xs leading-relaxed break-words whitespace-pre-line pt-2 border-t border-[#87C0CD]/30">
                   {product.description}
-                </div>
+                </p>
               )}
 
               {/* CTA Action Box */}
@@ -418,6 +396,17 @@ export function ProductDetail() {
                       </button>
                     );
                   })()}
+
+                  {embedUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setVideoModalOpen(true)}
+                      className="w-full sm:w-auto py-3 px-4 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition flex items-center justify-center space-x-2 shadow-sm transform hover:-translate-y-0.5 cursor-pointer"
+                    >
+                      <Video className="w-4 h-4 text-rose-600" />
+                      <span>Watch Demo Video</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -425,6 +414,25 @@ export function ProductDetail() {
               {renderKeyFeatures(product.features)}
             </div>
           </div>
+
+          {/* Embedded YouTube Video Section */}
+          {embedUrl && (
+            <div className="glass-panel p-8 rounded-3xl space-y-4 border border-[#87C0CD]/40 mb-12 shadow-sm">
+              <div className="flex items-center space-x-2">
+                <Video className="w-5 h-5 text-rose-600" />
+                <h3 className="text-lg font-bold font-display text-[#113F67]">Product Demo Video</h3>
+              </div>
+              <div className="relative w-full aspect-video rounded-2xl overflow-hidden shadow-md bg-black border border-[#87C0CD]/30">
+                <iframe
+                  src={embedUrl}
+                  title={`${product.product_name} Demo Video`}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="w-full h-full border-0"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Full Specifications Table Section */}
           {product.specifications && (
@@ -455,6 +463,35 @@ export function ProductDetail() {
           </button>
           <div className="max-w-4xl max-h-[85vh] p-4 flex items-center justify-center bg-white rounded-3xl shadow-2xl">
             <img src={currentImageUrl} alt={product.product_name} className="max-w-full max-h-[80vh] object-contain rounded-2xl" />
+          </div>
+        </div>
+      )}
+
+      {/* Video Modal */}
+      {videoModalOpen && embedUrl && (
+        <div className="fixed inset-0 z-50 bg-[#113F67]/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-4xl bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/20">
+            <div className="flex items-center justify-between p-4 bg-[#113F67] text-white">
+              <h4 className="text-xs font-bold uppercase tracking-wider font-display flex items-center space-x-2">
+                <Video className="w-4 h-4 text-rose-400" />
+                <span>{product.product_name} - Product Demonstration</span>
+              </h4>
+              <button
+                onClick={() => setVideoModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-white/10 text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="relative w-full aspect-video">
+              <iframe
+                src={`${embedUrl}?autoplay=1`}
+                title={`${product.product_name} Demo Video`}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="w-full h-full border-0"
+              />
+            </div>
           </div>
         </div>
       )}

@@ -48,16 +48,30 @@ export function Services() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {services.map((svc) => (
-              <div key={svc.id} className="glass-panel p-8 rounded-3xl space-y-4 flex flex-col justify-between group border border-[#87C0CD]/40 shadow-sm hover:border-[#226597] transition">
+              <div key={svc.id} className="glass-panel p-6 sm:p-8 rounded-3xl space-y-4 flex flex-col justify-between group border border-[#87C0CD]/40 shadow-sm hover:border-[#226597] transition">
                 <div className="space-y-4">
-                  <div className="w-12 h-12 rounded-2xl bg-[#E4F1F5] border border-[#87C0CD]/50 flex items-center justify-center text-[#226597] shadow-sm">
-                    <Wrench className="w-6 h-6" />
+                  {/* Thumbnail / Banner Image Container */}
+                  <div className="h-52 bg-white rounded-2xl p-4 border border-[#87C0CD]/30 overflow-hidden flex items-center justify-center relative shadow-xs">
+                    {svc.thumbnail_image || svc.banner_image ? (
+                      <img
+                        src={svc.thumbnail_image || svc.banner_image}
+                        alt={svc.service_name}
+                        className="w-full h-full object-contain group-hover:scale-105 transition duration-300"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-2xl bg-[#E4F1F5] border border-[#87C0CD]/50 flex items-center justify-center text-[#226597] shadow-sm">
+                        <Wrench className="w-8 h-8" />
+                      </div>
+                    )}
                   </div>
+
                   <RouterLink to={`/services/${svc.slug}`}>
-                    <h3 className="text-xl font-bold font-display text-[#113F67] group-hover:text-[#226597] transition">{svc.service_name}</h3>
+                    <h3 className="text-xl font-bold font-display text-[#113F67] group-hover:text-[#226597] transition leading-snug">
+                      {svc.service_name}
+                    </h3>
                   </RouterLink>
-                  <p className="text-xs text-slate-600 leading-relaxed">{svc.short_description}</p>
-                  {svc.description && <div className="text-xs text-slate-600 pt-2 line-clamp-4 leading-relaxed">{svc.description}</div>}
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">{svc.short_description}</p>
+                  {svc.description && <div className="text-xs text-slate-500 line-clamp-3 leading-relaxed">{svc.description}</div>}
                 </div>
 
                 <div className="pt-6 border-t border-[#87C0CD]/30 flex items-center justify-between gap-3">

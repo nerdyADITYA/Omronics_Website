@@ -15,8 +15,8 @@ export function StatusBadge({ status }) {
   }
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${colorClasses}`}>
-      <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isOk ? 'bg-emerald-500' : isPending ? 'bg-amber-500' : 'bg-rose-500'}`}></span>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border whitespace-nowrap shrink-0 ${colorClasses}`}>
+      <span className={`w-1.5 h-1.5 rounded-full mr-1.5 shrink-0 ${isOk ? 'bg-emerald-500' : isPending ? 'bg-amber-500' : 'bg-rose-500'}`}></span>
       {status}
     </span>
   );

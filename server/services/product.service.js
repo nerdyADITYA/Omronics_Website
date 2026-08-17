@@ -69,6 +69,7 @@ export class ProductService {
       specifications: data.specifications || null,
       applications: data.applications || null,
       thumbnail_image: data.thumbnail_image || null,
+      video_url: data.video_url || null,
       datasheet_available: docsToSync.length > 0 ? 1 : 0,
       featured: data.featured ? 1 : 0,
       status: data.status || 'ACTIVE',

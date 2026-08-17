@@ -56,11 +56,11 @@ export function DataTable({
           <thead className="bg-[#F3F9FB] uppercase text-[10px] tracking-wider text-[#113F67] border-b border-[#87C0CD]/30 font-bold">
             <tr>
               {columns.map((col) => (
-                <th key={col.key || col.header} className="px-6 py-3.5 font-bold">
+                <th key={col.key || col.header} className={`px-6 py-3.5 font-bold whitespace-nowrap ${col.headerClassName || ''}`}>
                   {col.header}
                 </th>
               ))}
-              {(onEdit || onDelete) && <th className="px-6 py-3.5 text-right font-bold">Actions</th>}
+              {(onEdit || onDelete) && <th className="px-6 py-3.5 text-right font-bold whitespace-nowrap">Actions</th>}
             </tr>
           </thead>
 
@@ -80,20 +80,31 @@ export function DataTable({
             ) : (
               data.map((row, idx) => (
                 <tr key={row.id || idx} className="hover:bg-[#F3F9FB]/60 transition">
-                  {columns.map((col) => (
-                    <td key={col.key} className="px-6 py-4 font-medium">
-                      {col.render ? (
-                        col.render(row[col.key], row)
-                      ) : col.key === 'status' ? (
-                        <StatusBadge status={row[col.key]} />
-                      ) : (
-                        <span>{row[col.key] ?? '-'}</span>
-                      )}
-                    </td>
-                  ))}
+                  {columns.map((col) => {
+                    const isLongField = col.isLongText || ['short_description', 'description', 'requirement', 'features', 'specifications', 'message', 'testimonial'].includes(col.key);
+                    
+                    return (
+                      <td
+                        key={col.key}
+                        className={`px-6 py-4 font-medium ${
+                          isLongField
+                            ? 'min-w-[280px] max-w-md break-words leading-relaxed text-slate-600'
+                            : 'whitespace-nowrap'
+                        } ${col.className || ''}`}
+                      >
+                        {col.render ? (
+                          col.render(row[col.key], row)
+                        ) : col.key === 'status' ? (
+                          <StatusBadge status={row[col.key]} />
+                        ) : (
+                          <span>{row[col.key] ?? '-'}</span>
+                        )}
+                      </td>
+                    );
+                  })}
 
                   {(onEdit || onDelete) && (
-                    <td className="px-6 py-4 text-right space-x-2">
+                    <td className="px-6 py-4 text-right whitespace-nowrap space-x-2">
                       {onEdit && (
                         <button
                           onClick={() => onEdit(row)}

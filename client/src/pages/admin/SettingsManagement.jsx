@@ -25,7 +25,13 @@ export function SettingsManagement() {
 
   const handleSave = async (formData) => {
     try {
-      const res = await api.put('/settings', formData);
+      const payload = {
+        ...formData,
+        logo: typeof formData.logo === 'object' ? formData.logo?.url || '' : formData.logo,
+        favicon: typeof formData.favicon === 'object' ? formData.favicon?.url || '' : formData.favicon,
+      };
+
+      const res = await api.put('/settings', payload);
       if (res.success) {
         setSettings(res.data);
         reloadSettings();
