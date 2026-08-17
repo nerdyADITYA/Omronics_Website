@@ -70,8 +70,6 @@ export function CategoryManagement() {
     { name: 'slug', label: 'URL Slug', type: 'text', placeholder: 'Auto-generated if left blank' },
     { name: 'short_description', label: 'Short Description', type: 'textarea', rows: 2 },
     { name: 'description', label: 'Full Description', type: 'textarea', rows: 4 },
-    { name: 'banner_image', label: 'Banner Image', type: 'image', folder: 'categories' },
-    { name: 'thumbnail_image', label: 'Thumbnail Image', type: 'image', folder: 'categories' },
     { name: 'sort_order', label: 'Sort Order', type: 'number', placeholder: '0' },
     {
       name: 'status',
