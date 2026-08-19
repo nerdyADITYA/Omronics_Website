@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DataTable } from '../../components/admin/DataTable';
 import { FormModal } from '../../components/admin/FormModal';
 import { DynamicForm } from '../../components/admin/DynamicForm';
+import { StatusBadge } from '../../components/admin/StatusBadge';
 import api from '../../services/api';
 
 export function ProductManagement() {
@@ -129,7 +130,7 @@ export function ProductManagement() {
             </span>
           );
         }
-        return val;
+        return <StatusBadge status={val} />;
       },
     },
   ];

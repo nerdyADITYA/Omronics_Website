@@ -92,13 +92,19 @@ export function DataTable({
                             : 'whitespace-nowrap'
                         } ${col.className || ''}`}
                       >
-                        {col.render ? (
-                          col.render(row[col.key], row)
-                        ) : col.key === 'status' ? (
-                          <StatusBadge status={row[col.key]} />
-                        ) : (
-                          <span>{row[col.key] ?? '-'}</span>
-                        )}
+                        {(() => {
+                          const val = col.render ? col.render(row[col.key], row) : row[col.key];
+                          if (typeof val === 'string' && ['ACTIVE', 'INACTIVE', 'NEW', 'IN_PROGRESS', 'CONTACTED', 'CLOSED', 'COMPLETED'].includes(val.trim())) {
+                            return <StatusBadge status={val.trim()} />;
+                          }
+                          if (col.render) {
+                            return val;
+                          }
+                          if (col.key === 'status') {
+                            return <StatusBadge status={row[col.key]} />;
+                          }
+                          return <span>{val ?? '-'}</span>;
+                        })()}
                       </td>
                     );
                   })}
