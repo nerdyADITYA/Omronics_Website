@@ -12,7 +12,7 @@ export class ProductRepository extends BaseRepository {
    */
   async findDetailById(id) {
     const sql = `
-      SELECT p.*, c.name as category_name, c.slug as category_slug
+      SELECT p.*, c.name as category_name, c.slug as category_slug, c.status as category_status
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.id = ? AND p.deleted_at IS NULL
@@ -33,7 +33,7 @@ export class ProductRepository extends BaseRepository {
    */
   async findDetailBySlug(slug) {
     const sql = `
-      SELECT p.*, c.name as category_name, c.slug as category_slug
+      SELECT p.*, c.name as category_name, c.slug as category_slug, c.status as category_status
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.slug = ? AND p.deleted_at IS NULL
@@ -73,6 +73,10 @@ export class ProductRepository extends BaseRepository {
     if (status) {
       whereClauses.push('p.status = ?');
       params.push(status);
+      if (status === 'ACTIVE') {
+        whereClauses.push('(c.status = ? OR c.status IS NULL)');
+        params.push('ACTIVE');
+      }
     }
 
     if (categoryId) {
@@ -97,7 +101,7 @@ export class ProductRepository extends BaseRepository {
     const safeOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     const sql = `
-      SELECT p.*, c.name as category_name, c.slug as category_slug
+      SELECT p.*, c.name as category_name, c.slug as category_slug, c.status as category_status
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       ${whereSql}
@@ -105,7 +109,7 @@ export class ProductRepository extends BaseRepository {
       LIMIT ? OFFSET ?
     `;
 
-    const countSql = `SELECT COUNT(*) as total FROM products p ${whereSql}`;
+    const countSql = `SELECT COUNT(*) as total FROM products p LEFT JOIN categories c ON p.category_id = c.id ${whereSql}`;
 
     const rows = await query(sql, [...params, limit, offset]);
     const countRes = await query(countSql, params);

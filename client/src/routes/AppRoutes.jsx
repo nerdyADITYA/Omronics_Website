@@ -11,6 +11,7 @@ import { Industries } from '../pages/public/Industries';
 import { Clients } from '../pages/public/Clients';
 import { About } from '../pages/public/About';
 import { Contact } from '../pages/public/Contact';
+import { NotFound } from '../pages/public/NotFound';
 
 // Admin Auth & Layout
 import { Login } from '../pages/admin/Login';
@@ -59,6 +60,9 @@ export function AppRoutes() {
           <Route path="settings" element={<SettingsManagement />} />
         </Route>
       </Route>
+
+      {/* Catch-All 404 Page Not Found */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

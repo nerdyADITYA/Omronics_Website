@@ -113,7 +113,21 @@ export function ProductManagement() {
     { header: 'Catalog PDF', key: 'datasheet_available', render: (val) => (val ? 'PDF Attached' : 'None') },
     { header: 'Demo Video', key: 'video_url', render: (val) => (val ? <span className="text-emerald-700 font-bold">Video Link</span> : 'None') },
     { header: 'Featured', key: 'featured', render: (val) => (val ? 'Yes' : 'No') },
-    { header: 'Status', key: 'status' },
+    {
+      header: 'Status',
+      key: 'status',
+      render: (val, row) => {
+        if (row.category_status === 'INACTIVE') {
+          return (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 shrink-0 whitespace-nowrap shadow-xs" title="Disabled on website because parent category is INACTIVE">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 animate-pulse"></span>
+              CATEGORY INACTIVE
+            </span>
+          );
+        }
+        return val;
+      },
+    },
   ];
 
   const formFields = [

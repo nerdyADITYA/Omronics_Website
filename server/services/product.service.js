@@ -19,7 +19,7 @@ export class ProductService {
 
   async getBySlug(slug) {
     const product = await productRepository.findDetailBySlug(slug);
-    if (!product) {
+    if (!product || product.status === 'INACTIVE' || product.category_status === 'INACTIVE') {
       throw new AppError(MESSAGES.PRODUCT_NOT_FOUND, 404);
     }
     return product;
