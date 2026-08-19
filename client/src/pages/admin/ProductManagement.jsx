@@ -76,6 +76,10 @@ export function ProductManagement() {
           : formData.thumbnail_image || null,
       };
 
+      delete payload.category_name;
+      delete payload.category_slug;
+      delete payload.category_status;
+
       if (editingProduct) {
         await api.put(`/products/${editingProduct.id}`, payload);
       } else {

@@ -109,6 +109,7 @@ export class ProductService {
     delete updatePayload.pdf_catalog_url;
     delete updatePayload.category_name;
     delete updatePayload.category_slug;
+    delete updatePayload.category_status;
     delete updatePayload.created_at;
     delete updatePayload.updated_at;
     delete updatePayload.deleted_at;
