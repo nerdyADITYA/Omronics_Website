@@ -8,6 +8,13 @@ const booleanOrNumberOrString = z
   .nullable()
   .optional();
 
+const stringOrUrlObject = z
+  .string()
+  .or(z.object({ url: z.string() }).transform((obj) => obj.url))
+  .or(z.object({ document_url: z.string() }).transform((obj) => obj.document_url))
+  .nullable()
+  .optional();
+
 const productSchema = z.object({
   category_id: z.number().or(z.string().transform(Number)),
   product_name: z.string().min(2, 'Product name must be at least 2 characters').max(255),
@@ -18,7 +25,7 @@ const productSchema = z.object({
   features: z.string().nullable().optional(),
   specifications: z.string().nullable().optional(),
   applications: z.string().nullable().optional(),
-  thumbnail_image: z.string().nullable().optional(),
+  thumbnail_image: stringOrUrlObject,
   datasheet_available: booleanOrNumberOrString,
   featured: booleanOrNumberOrString,
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),

@@ -68,7 +68,7 @@ export class ProductService {
       features: data.features || null,
       specifications: data.specifications || null,
       applications: data.applications || null,
-      thumbnail_image: data.thumbnail_image || null,
+      thumbnail_image: typeof data.thumbnail_image === 'object' ? data.thumbnail_image?.url || data.thumbnail_image?.document_url || null : data.thumbnail_image || null,
       video_url: data.video_url || null,
       datasheet_available: docsToSync.length > 0 ? 1 : 0,
       featured: data.featured ? 1 : 0,
@@ -112,6 +112,10 @@ export class ProductService {
     delete updatePayload.created_at;
     delete updatePayload.updated_at;
     delete updatePayload.deleted_at;
+
+    if (typeof updatePayload.thumbnail_image === 'object' && updatePayload.thumbnail_image !== null) {
+      updatePayload.thumbnail_image = updatePayload.thumbnail_image.url || updatePayload.thumbnail_image.document_url || null;
+    }
 
     if (data.slug || data.product_name) {
       const newSlug = generateSlug(data.slug || data.product_name);

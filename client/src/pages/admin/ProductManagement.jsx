@@ -69,10 +69,17 @@ export function ProductManagement() {
 
   const handleCreateOrUpdate = async (formData) => {
     try {
+      const payload = {
+        ...formData,
+        thumbnail_image: typeof formData.thumbnail_image === 'object' && formData.thumbnail_image !== null
+          ? formData.thumbnail_image.url || formData.thumbnail_image.document_url || null
+          : formData.thumbnail_image || null,
+      };
+
       if (editingProduct) {
-        await api.put(`/products/${editingProduct.id}`, formData);
+        await api.put(`/products/${editingProduct.id}`, payload);
       } else {
-        await api.post('/products', formData);
+        await api.post('/products', payload);
       }
       setModalOpen(false);
       setEditingProduct(null);
