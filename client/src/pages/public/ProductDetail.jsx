@@ -352,6 +352,14 @@ export function ProductDetail() {
                     Model: {product.model_number}
                   </p>
                 )}
+                {product.price !== null && product.price !== undefined && product.price !== '' && (
+                  <div className="mt-3 flex items-baseline space-x-2">
+                    <span className="text-3xl font-extrabold text-[#113F67] font-display">
+                      ₹{Number(product.price).toLocaleString('en-IN')}
+                    </span>
+                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">/ Piece</span>
+                  </div>
+                )}
               </div>
 
               {product.short_description && (

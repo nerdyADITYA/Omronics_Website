@@ -20,6 +20,10 @@ const productSchema = z.object({
   product_name: z.string().min(2, 'Product name must be at least 2 characters').max(255),
   slug: z.string().max(255).nullable().optional(),
   model_number: z.string().max(100).nullable().optional(),
+  price: z.union([
+    z.number(),
+    z.string().transform((val) => (val === '' || val === null || val === undefined ? null : Number(val))),
+  ]).nullable().optional(),
   short_description: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
   features: z.string().nullable().optional(),

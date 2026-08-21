@@ -63,6 +63,7 @@ export class ProductService {
       product_name: data.product_name,
       slug,
       model_number: data.model_number || null,
+      price: data.price !== undefined && data.price !== null && data.price !== '' ? parseInt(data.price, 10) : null,
       short_description: data.short_description || null,
       description: data.description || null,
       features: data.features || null,
@@ -116,6 +117,10 @@ export class ProductService {
 
     if (typeof updatePayload.thumbnail_image === 'object' && updatePayload.thumbnail_image !== null) {
       updatePayload.thumbnail_image = updatePayload.thumbnail_image.url || updatePayload.thumbnail_image.document_url || null;
+    }
+
+    if (updatePayload.price !== undefined) {
+      updatePayload.price = updatePayload.price !== null && updatePayload.price !== '' ? parseInt(updatePayload.price, 10) : null;
     }
 
     if (data.slug || data.product_name) {

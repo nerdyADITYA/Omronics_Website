@@ -181,6 +181,11 @@ export function Products() {
                             {prod.model_number}
                           </span>
                         )}
+                        {prod.price !== null && prod.price !== undefined && prod.price !== '' && (
+                          <div className="pt-1.5 text-base font-extrabold text-[#113F67]">
+                            ₹{Number(prod.price).toLocaleString('en-IN')}
+                          </div>
+                        )}
                         <p className="text-xs text-slate-600 line-clamp-3 pt-1 break-words leading-relaxed">{prod.short_description}</p>
                       </div>
                     </div>

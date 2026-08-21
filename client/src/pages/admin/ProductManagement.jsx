@@ -115,9 +115,11 @@ export function ProductManagement() {
     { header: 'Product Name', key: 'product_name' },
     { header: 'Category', key: 'category_name' },
     { header: 'Model Number', key: 'model_number' },
-    { header: 'Catalog PDF', key: 'datasheet_available', render: (val) => (val ? 'PDF Attached' : 'None') },
-    { header: 'Demo Video', key: 'video_url', render: (val) => (val ? <span className="text-emerald-700 font-bold">Video Link</span> : 'None') },
-    { header: 'Featured', key: 'featured', render: (val) => (val ? 'Yes' : 'No') },
+    {
+      header: 'Price (₹)',
+      key: 'price',
+      render: (val) => (val !== null && val !== undefined && val !== '' ? `₹${Number(val).toLocaleString('en-IN')}` : '-'),
+    },
     {
       header: 'Status',
       key: 'status',
@@ -145,6 +147,7 @@ export function ProductManagement() {
     { name: 'product_name', label: 'Product Name *', type: 'text', placeholder: 'e.g. Panasonic A6 Servo Cable' },
     { name: 'slug', label: 'URL Slug', type: 'text', placeholder: 'Auto-generated if left blank' },
     { name: 'model_number', label: 'Model / Part Number', type: 'text', placeholder: 'e.g. MFECA0050EAE' },
+    { name: 'price', label: 'Product Price (₹) - Integer Only', type: 'number', placeholder: 'e.g. 4500' },
     { name: 'short_description', label: 'Short Description', type: 'textarea', rows: 2 },
     { name: 'description', label: 'Full Description', type: 'textarea', rows: 4 },
     { name: 'features', label: 'Key Features (Line separated)', type: 'textarea', rows: 3 },
