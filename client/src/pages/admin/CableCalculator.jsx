@@ -14,6 +14,7 @@ import {
   Trash2,
   FileCode,
   Tag,
+  Edit3,
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -275,7 +276,7 @@ export function CableCalculator() {
   }
 
   return (
-    <div className="space-y-6 font-sans max-w-7xl mx-auto">
+    <div className="space-y-6 font-sans w-full max-w-[1600px] mx-auto px-2 sm:px-4">
       {/* Header Bar */}
       <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -873,15 +874,15 @@ export function CableCalculator() {
             <table className="w-full text-left text-xs text-[#113F67]">
               <thead className="bg-[#F3F9FB] uppercase text-[10px] font-extrabold text-[#113F67] border-b border-[#87C0CD]/30">
                 <tr>
-                  <th className="px-4 py-3">Product Name</th>
-                  <th className="px-4 py-3">Part Code</th>
-                  <th className="px-4 py-3">Header / Motor Spec</th>
-                  <th className="px-4 py-3">Cable Spec & Cost</th>
-                  <th className="px-4 py-3">Connectors & Extra Items</th>
-                  <th className="px-4 py-3">Landing Price</th>
-                  <th className="px-4 py-3">Margin %</th>
-                  <th className="px-4 py-3">Final Selling Price</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3 whitespace-nowrap">Product Name</th>
+                  <th className="px-4 py-3 whitespace-nowrap">Part Code</th>
+                  <th className="px-4 py-3 whitespace-nowrap">Header / Motor Spec</th>
+                  <th className="px-4 py-3 whitespace-nowrap">Cable Spec & Cost</th>
+                  <th className="px-4 py-3 whitespace-nowrap">Connectors & Extra Items</th>
+                  <th className="px-4 py-3 whitespace-nowrap">Landing Price</th>
+                  <th className="px-4 py-3 whitespace-nowrap">Margin %</th>
+                  <th className="px-4 py-3 whitespace-nowrap">Final Selling Price</th>
+                  <th className="px-4 py-3 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#87C0CD]/20">
@@ -907,23 +908,23 @@ export function CableCalculator() {
 
                     return (
                       <tr key={c.id} className="hover:bg-[#F3F9FB]/60 transition">
-                        <td className="px-4 py-3.5 font-bold text-[#113F67]">{c.product_name}</td>
-                        <td className="px-4 py-3.5 font-mono text-[#226597] font-bold">
-                          <span className="px-2 py-0.5 bg-[#E4F1F5] rounded border border-[#87C0CD]/40">
+                        <td className="px-4 py-3.5 font-bold text-[#113F67] whitespace-nowrap">{c.product_name}</td>
+                        <td className="px-4 py-3.5 font-mono text-[#226597] font-bold whitespace-nowrap">
+                          <span className="px-2.5 py-1 bg-[#E4F1F5] rounded-lg border border-[#87C0CD]/40">
                             {c.part_code || 'Unnamed Part Code'}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 space-y-0.5">
+                        <td className="px-4 py-3.5 space-y-0.5 min-w-[180px]">
                           {c.frame_size && <span className="block text-[10px] text-slate-500 font-semibold">{c.frame_size}</span>}
                           {c.motor_type && <span className="block text-[11px] font-bold text-[#113F67]">{c.motor_type}</span>}
                         </td>
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3.5 whitespace-nowrap">
                           <span className="font-semibold">{c.cable_dimension || '-'}</span>
                           <span className="block text-[10px] text-slate-500 font-mono">
                             {c.cable_cost_per_meter ? `₹${c.cable_cost_per_meter}/m` : '-'}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 space-y-0.5">
+                        <td className="px-4 py-3.5 space-y-0.5 min-w-[200px]">
                           {c.connector1_name && <span className="block text-[11px]">{c.connector1_name}: ₹{c.connector1_cost}</span>}
                           {c.connector2_name && <span className="block text-[11px]">{c.connector2_name}: ₹{c.connector2_cost}</span>}
                           {Array.isArray(c.additional_components) &&
@@ -933,35 +934,38 @@ export function CableCalculator() {
                               </span>
                             ))}
                         </td>
-                      <td className="px-4 py-3.5 font-bold font-mono text-[#113F67]">
-                        {landingVal > 0 ? `₹${landingVal.toLocaleString('en-IN')}` : '-'}
-                      </td>
-                      <td className="px-4 py-3.5 font-bold text-emerald-700">{c.margin_percentage}%</td>
-                      <td className="px-4 py-3.5 font-bold font-mono text-emerald-700">
-                        {c.selling_price ? `₹${Number(c.selling_price).toLocaleString('en-IN')}` : '-'}
-                      </td>
-                      <td className="px-4 py-3.5 text-right space-x-1.5">
-                        <button
-                          onClick={() => {
-                            setSelectedProductId(String(c.product_id));
-                            loadVariantIntoForm(c);
-                            setActiveTab('calculator');
-                          }}
-                          className="px-3 py-1 bg-[#226597] hover:bg-[#113F67] text-white font-bold text-[11px] rounded-lg transition cursor-pointer"
-                        >
-                          Load in Calculator
-                        </button>
-                        <button
-                          onClick={() => handleDeleteVariant(c.id)}
-                          className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition cursor-pointer"
-                          title="Delete variant"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
+                        <td className="px-4 py-3.5 font-bold font-mono text-[#113F67] whitespace-nowrap">
+                          {landingVal > 0 ? `₹${landingVal.toLocaleString('en-IN')}` : '-'}
+                        </td>
+                        <td className="px-4 py-3.5 font-bold text-emerald-700 whitespace-nowrap">{c.margin_percentage}%</td>
+                        <td className="px-4 py-3.5 font-bold font-mono text-emerald-700 whitespace-nowrap">
+                          {c.selling_price ? `₹${Number(c.selling_price).toLocaleString('en-IN')}` : '-'}
+                        </td>
+                        <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end space-x-2">
+                            <button
+                              onClick={() => {
+                                setSelectedProductId(String(c.product_id));
+                                loadVariantIntoForm(c);
+                                setActiveTab('calculator');
+                              }}
+                              className="p-2 bg-[#226597] hover:bg-[#113F67] text-white rounded-xl transition cursor-pointer shadow-xs inline-flex items-center justify-center"
+                              title="Edit in Calculator"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteVariant(c.id)}
+                              className="p-2 text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-xl transition cursor-pointer shadow-xs inline-flex items-center justify-center"
+                              title="Delete variant setup"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
