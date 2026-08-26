@@ -6,12 +6,12 @@ import {
   saveConfiguration,
   syncSellingPrice,
 } from '../controllers/cableCost.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { verifyToken } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
 // Protect all cable cost routes (Admin only)
-router.use(authenticate);
+router.use(verifyToken);
 
 router.get('/servo-products', getServoProducts);
 router.get('/', getAllConfigurations);
