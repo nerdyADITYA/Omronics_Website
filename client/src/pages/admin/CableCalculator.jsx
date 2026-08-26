@@ -1,5 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator, Settings2, Save, RefreshCw, CheckCircle2, AlertCircle, Zap, ArrowRight, Layers, Sliders, DollarSign, Wrench } from 'lucide-react';
+import {
+  Calculator,
+  Settings2,
+  Save,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle,
+  Zap,
+  ArrowRight,
+  Layers,
+  Sliders,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import api from '../../services/api';
 
 export function CableCalculator() {
@@ -28,6 +41,7 @@ export function CableCalculator() {
     battery_name: '',
     battery_cost: 0,
     margin_percentage: 35,
+    additional_components: [],
   });
 
   useEffect(() => {
@@ -81,6 +95,7 @@ export function CableCalculator() {
         battery_name: found.battery_name || '',
         battery_cost: Number(found.battery_cost) || 0,
         margin_percentage: Number(found.margin_percentage) || 35,
+        additional_components: Array.isArray(found.additional_components) ? found.additional_components : [],
       });
     } else {
       setParams({
@@ -99,9 +114,37 @@ export function CableCalculator() {
         battery_name: '',
         battery_cost: 0,
         margin_percentage: 35,
+        additional_components: [],
       });
     }
   }, [selectedProductId, configurations, servoProducts]);
+
+  // Live Dynamic Extra Component Handlers
+  const handleAddExtraComponent = () => {
+    setParams((prev) => ({
+      ...prev,
+      additional_components: [
+        ...(Array.isArray(prev.additional_components) ? prev.additional_components : []),
+        { name: '', cost: '' },
+      ],
+    }));
+  };
+
+  const handleUpdateExtraComponent = (index, field, value) => {
+    setParams((prev) => {
+      const list = [...(Array.isArray(prev.additional_components) ? prev.additional_components : [])];
+      list[index] = { ...list[index], [field]: value };
+      return { ...prev, additional_components: list };
+    });
+  };
+
+  const handleRemoveExtraComponent = (index) => {
+    setParams((prev) => {
+      const list = [...(Array.isArray(prev.additional_components) ? prev.additional_components : [])];
+      list.splice(index, 1);
+      return { ...prev, additional_components: list };
+    });
+  };
 
   // Live Formula Calculations
   const lengthVal = Number(params.default_length) || 0;
@@ -112,8 +155,12 @@ export function CableCalculator() {
   const labourCost = Number(params.labour_cost) || 0;
   const batteryCost = Number(params.battery_cost) || 0;
 
-  // C10 Landing Cost = (C5 * C6) + C7 + C8 + C9 + Battery
-  const landingCost = rawCableCost + c1Cost + c2Cost + labourCost + batteryCost;
+  const extraComponentsCost = Array.isArray(params.additional_components)
+    ? params.additional_components.reduce((sum, item) => sum + (Number(item.cost) || 0), 0)
+    : 0;
+
+  // C10 Landing Cost = (C5 * C6) + C7 + C8 + C9 + Battery + Extra Components
+  const landingCost = rawCableCost + c1Cost + c2Cost + labourCost + batteryCost + extraComponentsCost;
   // C11 Margin %
   const marginPct = Number(params.margin_percentage) || 0;
   // C12 Profit Margin Cost = C11 * C10
@@ -176,7 +223,7 @@ export function CableCalculator() {
             <h1 className="text-xl font-bold text-[#113F67] font-display">Servo Cable Cost & Price Calculator</h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Adjust component specs, connector unit prices, length, and profit margins live to calculate landing costs and update selling prices.
+            Adjust component specs, connectors, extra hardware, length, and profit margins live to calculate landing costs and update selling prices.
           </p>
         </div>
 
@@ -418,6 +465,60 @@ export function CableCalculator() {
                     />
                   </div>
                 </div>
+
+                {/* Dynamic Extra Components List */}
+                <div className="pt-3 border-t border-[#87C0CD]/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#113F67]">
+                      Additional Components & Connectors
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAddExtraComponent}
+                      className="px-3 py-1 bg-[#226597] hover:bg-[#113F67] text-white text-[11px] font-bold rounded-lg transition flex items-center space-x-1 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Add Extra Component</span>
+                    </button>
+                  </div>
+
+                  {Array.isArray(params.additional_components) && params.additional_components.length > 0 ? (
+                    <div className="space-y-2">
+                      {params.additional_components.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-[#87C0CD]/40">
+                          <input
+                            type="text"
+                            placeholder={`e.g. Connector ${idx + 3} / Terminal`}
+                            value={item.name}
+                            onChange={(e) => handleUpdateExtraComponent(idx, 'name', e.target.value)}
+                            className="flex-1 px-2.5 py-1.5 bg-[#F3F9FB] border border-[#87C0CD]/30 rounded text-xs font-semibold text-[#113F67]"
+                          />
+                          <div className="w-28 flex items-center">
+                            <span className="text-xs font-bold text-slate-500 mr-1">₹</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              placeholder="Cost"
+                              value={item.cost}
+                              onChange={(e) => handleUpdateExtraComponent(idx, 'cost', e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-[#F3F9FB] border border-[#87C0CD]/30 rounded text-xs font-bold text-[#113F67]"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExtraComponent(idx)}
+                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition cursor-pointer"
+                            title="Remove Component"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic">No extra components added. Click above to add dynamic connectors or hardware.</p>
+                  )}
+                </div>
               </div>
 
               {/* Profit Margin % */}
@@ -527,6 +628,22 @@ export function CableCalculator() {
                       <td className="px-4 py-3 text-right text-slate-500">Unit Price</td>
                       <td className="px-4 py-3 text-right font-mono font-bold">₹{c2Cost.toLocaleString('en-IN')}</td>
                     </tr>
+
+                    {/* Dynamic Extra Components Rows */}
+                    {Array.isArray(params.additional_components) &&
+                      params.additional_components.map((item, idx) => {
+                        const itemCost = Number(item.cost) || 0;
+                        return (
+                          <tr key={idx} className="bg-amber-50/20">
+                            <td className="px-4 py-3 font-semibold">
+                              {item.name || `Extra Component ${idx + 3}`}
+                            </td>
+                            <td className="px-4 py-3 text-right text-slate-500">Unit Price</td>
+                            <td className="px-4 py-3 text-right font-mono font-bold">₹{itemCost.toLocaleString('en-IN')}</td>
+                          </tr>
+                        );
+                      })}
+
                     <tr>
                       <td className="px-4 py-3 font-semibold">Labour Cost</td>
                       <td className="px-4 py-3 text-right text-slate-500">Assembly</td>
@@ -544,11 +661,12 @@ export function CableCalculator() {
                         <td className="px-4 py-3 text-right font-mono font-bold">₹{batteryCost.toLocaleString('en-IN')}</td>
                       </tr>
                     )}
+
                     {/* Landing Cost Row (C10) */}
                     <tr className="bg-sky-50 font-extrabold border-t-2 border-[#87C0CD]/50">
                       <td className="px-4 py-3.5 text-[#113F67] uppercase tracking-wider text-xs">LANDING COST (C10)</td>
                       <td className="px-4 py-3.5 text-right text-[10px] text-slate-500 font-normal">
-                        (C5×C6) + C7 + C8 + C9
+                        Sum of All Components
                       </td>
                       <td className="px-4 py-3.5 text-right font-mono text-sm text-[#113F67]">
                         ₹{landingCost.toLocaleString('en-IN')}
@@ -614,7 +732,7 @@ export function CableCalculator() {
                   <th className="px-4 py-3">Product Name</th>
                   <th className="px-4 py-3">Part Code</th>
                   <th className="px-4 py-3">Cable Spec & Cost</th>
-                  <th className="px-4 py-3">Connectors</th>
+                  <th className="px-4 py-3">Connectors & Extra Items</th>
                   <th className="px-4 py-3">Labour</th>
                   <th className="px-4 py-3">Margin %</th>
                   <th className="px-4 py-3">Catalog Price</th>
@@ -640,6 +758,12 @@ export function CableCalculator() {
                       <td className="px-4 py-3.5 space-y-0.5">
                         <span className="block text-[11px]">{c.connector1_name}: ₹{c.connector1_cost}</span>
                         <span className="block text-[11px]">{c.connector2_name}: ₹{c.connector2_cost}</span>
+                        {Array.isArray(c.additional_components) &&
+                          c.additional_components.map((item, idx) => (
+                            <span key={idx} className="block text-[10px] text-amber-800 font-semibold">
+                              + {item.name}: ₹{item.cost}
+                            </span>
+                          ))}
                       </td>
                       <td className="px-4 py-3.5 font-mono">₹{c.labour_cost}</td>
                       <td className="px-4 py-3.5 font-bold text-emerald-700">{c.margin_percentage}%</td>
@@ -652,7 +776,7 @@ export function CableCalculator() {
                             setSelectedProductId(String(c.product_id));
                             setActiveTab('calculator');
                           }}
-                          className="px-3 py-1 bg-[#226597] hover:bg-[#113F67] text-white font-bold text-[11px] rounded-lg transition"
+                          className="px-3 py-1 bg-[#226597] hover:bg-[#113F67] text-white font-bold text-[11px] rounded-lg transition cursor-pointer"
                         >
                           Load in Calculator
                         </button>

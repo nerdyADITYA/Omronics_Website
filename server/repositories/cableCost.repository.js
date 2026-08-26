@@ -1,6 +1,21 @@
 import { query } from '../config/database.js';
 
 export class CableCostRepository {
+  formatRow(row) {
+    if (!row) return null;
+    if (typeof row.additional_components === 'string') {
+      try {
+        row.additional_components = JSON.parse(row.additional_components);
+      } catch (err) {
+        row.additional_components = [];
+      }
+    }
+    if (!Array.isArray(row.additional_components)) {
+      row.additional_components = [];
+    }
+    return row;
+  }
+
   async findAll() {
     const sql = `
       SELECT pcc.*, p.product_name, p.model_number, p.slug as product_slug, p.price as current_product_price, c.name as category_name
@@ -10,7 +25,8 @@ export class CableCostRepository {
       WHERE p.deleted_at IS NULL
       ORDER BY pcc.updated_at DESC
     `;
-    return query(sql);
+    const rows = await query(sql);
+    return rows.map((r) => this.formatRow(r));
   }
 
   async findByProductId(productId) {
@@ -22,7 +38,7 @@ export class CableCostRepository {
       LIMIT 1
     `;
     const rows = await query(sql, [productId]);
-    return rows[0] || null;
+    return this.formatRow(rows[0] || null);
   }
 
   async upsert(data) {
@@ -30,8 +46,9 @@ export class CableCostRepository {
       INSERT INTO product_cable_costs (
         product_id, frame_size, motor_type, part_code, default_length,
         cable_dimension, cable_cost_per_meter, connector1_name, connector1_cost,
-        connector2_name, connector2_cost, labour_cost, battery_name, battery_cost, margin_percentage
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        connector2_name, connector2_cost, labour_cost, battery_name, battery_cost,
+        margin_percentage, additional_components
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         frame_size = VALUES(frame_size),
         motor_type = VALUES(motor_type),
@@ -46,8 +63,15 @@ export class CableCostRepository {
         labour_cost = VALUES(labour_cost),
         battery_name = VALUES(battery_name),
         battery_cost = VALUES(battery_cost),
-        margin_percentage = VALUES(margin_percentage)
+        margin_percentage = VALUES(margin_percentage),
+        additional_components = VALUES(additional_components)
     `;
+
+    const additionalJson = Array.isArray(data.additional_components)
+      ? JSON.stringify(data.additional_components)
+      : typeof data.additional_components === 'string'
+      ? data.additional_components
+      : null;
 
     const params = [
       data.product_id,
@@ -65,6 +89,7 @@ export class CableCostRepository {
       data.battery_name || null,
       data.battery_cost !== undefined && data.battery_cost !== null ? Number(data.battery_cost) : 0,
       data.margin_percentage !== undefined && data.margin_percentage !== null ? Number(data.margin_percentage) : 35,
+      additionalJson,
     ];
 
     await query(sql, params);
