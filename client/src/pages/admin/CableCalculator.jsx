@@ -211,9 +211,12 @@ export function CableCalculator() {
     setFeedback(null);
     try {
       const finalPrice = Math.round(sellingPrice);
-      // 1. Save component configuration (with id if editing, or null if creating new variant)
+      const finalLanding = Math.round(landingCost);
+      // 1. Save component configuration (with landing_cost, selling_price, and id if editing)
       const configRes = await api.post('/cable-costs', {
         ...params,
+        landing_cost: finalLanding,
+        selling_price: finalPrice,
         id: activeVariantId,
         product_id: selectedProductId,
       });
@@ -875,9 +878,9 @@ export function CableCalculator() {
                   <th className="px-4 py-3">Header / Motor Spec</th>
                   <th className="px-4 py-3">Cable Spec & Cost</th>
                   <th className="px-4 py-3">Connectors & Extra Items</th>
-                  <th className="px-4 py-3">Labour</th>
+                  <th className="px-4 py-3">Landing Price</th>
                   <th className="px-4 py-3">Margin %</th>
-                  <th className="px-4 py-3">Catalog Price</th>
+                  <th className="px-4 py-3">Final Selling Price</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -889,38 +892,53 @@ export function CableCalculator() {
                     </td>
                   </tr>
                 ) : (
-                  configurations.map((c) => (
-                    <tr key={c.id} className="hover:bg-[#F3F9FB]/60 transition">
-                      <td className="px-4 py-3.5 font-bold text-[#113F67]">{c.product_name}</td>
-                      <td className="px-4 py-3.5 font-mono text-[#226597] font-bold">
-                        <span className="px-2 py-0.5 bg-[#E4F1F5] rounded border border-[#87C0CD]/40">
-                          {c.part_code || 'Unnamed Part Code'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 space-y-0.5">
-                        {c.frame_size && <span className="block text-[10px] text-slate-500 font-semibold">{c.frame_size}</span>}
-                        {c.motor_type && <span className="block text-[11px] font-bold text-[#113F67]">{c.motor_type}</span>}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span className="font-semibold">{c.cable_dimension || '-'}</span>
-                        <span className="block text-[10px] text-slate-500 font-mono">
-                          {c.cable_cost_per_meter ? `₹${c.cable_cost_per_meter}/m` : '-'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 space-y-0.5">
-                        {c.connector1_name && <span className="block text-[11px]">{c.connector1_name}: ₹{c.connector1_cost}</span>}
-                        {c.connector2_name && <span className="block text-[11px]">{c.connector2_name}: ₹{c.connector2_cost}</span>}
-                        {Array.isArray(c.additional_components) &&
-                          c.additional_components.map((item, idx) => (
-                            <span key={idx} className="block text-[10px] text-amber-800 font-semibold">
-                              + {item.name}: ₹{item.cost}
-                            </span>
-                          ))}
-                      </td>
-                      <td className="px-4 py-3.5 font-mono">{c.labour_cost ? `₹${c.labour_cost}` : '-'}</td>
-                      <td className="px-4 py-3.5 font-bold text-emerald-700">{c.margin_percentage}%</td>
+                  configurations.map((c) => {
+                    const len = Number(c.default_length) || 0;
+                    const cCost = Number(c.cable_cost_per_meter) || 0;
+                    const c1 = Number(c.connector1_cost) || 0;
+                    const c2 = Number(c.connector2_cost) || 0;
+                    const labour = Number(c.labour_cost) || 0;
+                    const battery = Number(c.battery_cost) || 0;
+                    const extra = Array.isArray(c.additional_components)
+                      ? c.additional_components.reduce((sum, item) => sum + (Number(item.cost) || 0), 0)
+                      : 0;
+                    const computedLanding = Math.round(len * cCost + c1 + c2 + labour + battery + extra);
+                    const landingVal = c.landing_cost ? Math.round(Number(c.landing_cost)) : computedLanding;
+
+                    return (
+                      <tr key={c.id} className="hover:bg-[#F3F9FB]/60 transition">
+                        <td className="px-4 py-3.5 font-bold text-[#113F67]">{c.product_name}</td>
+                        <td className="px-4 py-3.5 font-mono text-[#226597] font-bold">
+                          <span className="px-2 py-0.5 bg-[#E4F1F5] rounded border border-[#87C0CD]/40">
+                            {c.part_code || 'Unnamed Part Code'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 space-y-0.5">
+                          {c.frame_size && <span className="block text-[10px] text-slate-500 font-semibold">{c.frame_size}</span>}
+                          {c.motor_type && <span className="block text-[11px] font-bold text-[#113F67]">{c.motor_type}</span>}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className="font-semibold">{c.cable_dimension || '-'}</span>
+                          <span className="block text-[10px] text-slate-500 font-mono">
+                            {c.cable_cost_per_meter ? `₹${c.cable_cost_per_meter}/m` : '-'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 space-y-0.5">
+                          {c.connector1_name && <span className="block text-[11px]">{c.connector1_name}: ₹{c.connector1_cost}</span>}
+                          {c.connector2_name && <span className="block text-[11px]">{c.connector2_name}: ₹{c.connector2_cost}</span>}
+                          {Array.isArray(c.additional_components) &&
+                            c.additional_components.map((item, idx) => (
+                              <span key={idx} className="block text-[10px] text-amber-800 font-semibold">
+                                + {item.name}: ₹{item.cost}
+                              </span>
+                            ))}
+                        </td>
                       <td className="px-4 py-3.5 font-bold font-mono text-[#113F67]">
-                        {c.current_product_price ? `₹${Number(c.current_product_price).toLocaleString('en-IN')}` : '-'}
+                        {landingVal > 0 ? `₹${landingVal.toLocaleString('en-IN')}` : '-'}
+                      </td>
+                      <td className="px-4 py-3.5 font-bold text-emerald-700">{c.margin_percentage}%</td>
+                      <td className="px-4 py-3.5 font-bold font-mono text-emerald-700">
+                        {c.selling_price ? `₹${Number(c.selling_price).toLocaleString('en-IN')}` : '-'}
                       </td>
                       <td className="px-4 py-3.5 text-right space-x-1.5">
                         <button
@@ -942,7 +960,8 @@ export function CableCalculator() {
                         </button>
                       </td>
                     </tr>
-                  ))
+                  );
+                })
                 )}
               </tbody>
             </table>

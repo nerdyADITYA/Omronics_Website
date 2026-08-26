@@ -60,6 +60,9 @@ export class CableCostRepository {
       ? data.additional_components
       : null;
 
+    const sellingPrice = data.selling_price !== undefined && data.selling_price !== null ? Number(data.selling_price) : 0;
+    const landingCost = data.landing_cost !== undefined && data.landing_cost !== null ? Number(data.landing_cost) : 0;
+
     if (data.id) {
       // Update existing variant record by primary key id
       const updateSql = `
@@ -78,7 +81,9 @@ export class CableCostRepository {
           battery_name = ?,
           battery_cost = ?,
           margin_percentage = ?,
-          additional_components = ?
+          additional_components = ?,
+          selling_price = ?,
+          landing_cost = ?
         WHERE id = ? AND product_id = ?
       `;
 
@@ -98,6 +103,8 @@ export class CableCostRepository {
         data.battery_cost !== undefined && data.battery_cost !== null ? Number(data.battery_cost) : 0,
         data.margin_percentage !== undefined && data.margin_percentage !== null ? Number(data.margin_percentage) : 35,
         additionalJson,
+        sellingPrice,
+        landingCost,
         data.id,
         data.product_id,
       ];
@@ -111,8 +118,8 @@ export class CableCostRepository {
           product_id, frame_size, motor_type, part_code, default_length,
           cable_dimension, cable_cost_per_meter, connector1_name, connector1_cost,
           connector2_name, connector2_cost, labour_cost, battery_name, battery_cost,
-          margin_percentage, additional_components
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          margin_percentage, additional_components, selling_price, landing_cost
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const insertParams = [
@@ -132,6 +139,8 @@ export class CableCostRepository {
         data.battery_cost !== undefined && data.battery_cost !== null ? Number(data.battery_cost) : 0,
         data.margin_percentage !== undefined && data.margin_percentage !== null ? Number(data.margin_percentage) : 35,
         additionalJson,
+        sellingPrice,
+        landingCost,
       ];
 
       const res = await query(insertSql, insertParams);
