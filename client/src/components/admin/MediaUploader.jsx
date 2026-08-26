@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { Upload, X, FileCheck, AlertCircle, Clipboard } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Upload, X, FileCheck, AlertCircle, Clipboard, Sparkles } from 'lucide-react';
 import api from '../../services/api';
 
 export function MediaUploader({ value, onChange, folder = 'general', isDocument = false, label = 'Upload File' }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const containerRef = useRef(null);
 
   let cleanValue = value;
   if (typeof value === 'string' && value.trim().startsWith('{')) {
@@ -53,31 +55,53 @@ export function MediaUploader({ value, onChange, folder = 'general', isDocument 
     if (file) handleUploadFile(file);
   };
 
-  const handlePaste = (e) => {
+  // Instant Window Paste Listener on Hover or Focus
+  useEffect(() => {
     if (isDocument || fileUrl || uploading) return;
-    const items = Array.from(e.clipboardData?.items || []);
-    for (const item of items) {
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (file) {
-          e.preventDefault();
-          const ext = item.type.split('/')[1] || 'png';
-          const pastedFile = new File([file], `pasted_image_${Date.now()}.${ext}`, { type: item.type });
-          handleUploadFile(pastedFile);
-          break;
+
+    const handleWindowPaste = (e) => {
+      // Process paste if mouse is hovering over uploader OR container has focus
+      if (!isHovered && containerRef.current && !containerRef.current.contains(document.activeElement)) {
+        return;
+      }
+
+      const items = Array.from(e.clipboardData?.items || []);
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            e.stopPropagation();
+            const ext = item.type.split('/')[1] || 'png';
+            const pastedFile = new File([file], `pasted_image_${Date.now()}.${ext}`, { type: item.type });
+            handleUploadFile(pastedFile);
+            break;
+          }
         }
       }
-    }
-  };
+    };
+
+    window.addEventListener('paste', handleWindowPaste);
+    return () => window.removeEventListener('paste', handleWindowPaste);
+  }, [isHovered, isDocument, fileUrl, uploading]);
 
   return (
-    <div className="space-y-2 font-sans" onPaste={handlePaste}>
+    <div
+      ref={containerRef}
+      className="space-y-2 font-sans"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <div className="flex items-center justify-between">
         <label className="block text-xs font-bold uppercase tracking-wider text-[#113F67] dark:text-[#f8fafc]">{label}</label>
         {!isDocument && !fileUrl && (
-          <span className="text-[10px] text-[#226597] dark:text-[#38bdf8] font-bold flex items-center space-x-1">
-            <Clipboard className="w-3 h-3" />
-            <span>Paste (Ctrl+V / Mobile Paste) Supported</span>
+          <span
+            className={`text-[10px] font-bold flex items-center space-x-1 transition ${
+              isHovered ? 'text-amber-500 animate-pulse font-extrabold' : 'text-[#226597] dark:text-[#38bdf8]'
+            }`}
+          >
+            {isHovered ? <Sparkles className="w-3 h-3 text-amber-500" /> : <Clipboard className="w-3 h-3" />}
+            <span>{isHovered ? 'Ready! Press Ctrl+V Now to Paste' : 'Hover & Press Ctrl+V to Paste'}</span>
           </span>
         )}
       </div>
@@ -115,20 +139,26 @@ export function MediaUploader({ value, onChange, folder = 'general', isDocument 
       ) : (
         <label
           tabIndex={0}
-          className="border-2 border-dashed border-[#87C0CD]/60 dark:border-[#233554] hover:border-[#226597] dark:hover:border-[#38bdf8] bg-[#F3F9FB] dark:bg-[#152238] hover:bg-white dark:hover:bg-[#1e2e4a] p-5 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition text-center group shadow-xs focus:outline-none focus:border-[#226597]"
+          className={`border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center cursor-pointer transition text-center group shadow-xs focus:outline-none ${
+            isHovered
+              ? 'border-[#226597] dark:border-[#38bdf8] bg-white dark:bg-[#1e2e4a] ring-2 ring-[#226597]/30 shadow-md scale-[1.01]'
+              : 'border-[#87C0CD]/60 dark:border-[#233554] bg-[#F3F9FB] dark:bg-[#152238] hover:bg-white dark:hover:bg-[#1e2e4a]'
+          }`}
         >
-          <Upload className="w-6 h-6 text-[#226597] dark:text-[#38bdf8] group-hover:scale-110 transition mb-2" />
+          <Upload className={`w-6 h-6 transition mb-2 ${isHovered ? 'text-amber-500 scale-125' : 'text-[#226597] dark:text-[#38bdf8]'}`} />
           <span className="text-xs font-bold text-[#113F67] dark:text-[#f8fafc]">
             {uploading
               ? isDocument
                 ? 'Uploading & Compressing PDF Stream...'
                 : 'Uploading & Processing Image...'
-              : `Click, Drag & Drop, or Paste Image (Ctrl+V)`}
+              : isHovered
+              ? 'Hovering Active — Press Ctrl+V to Paste Immediately!'
+              : 'Click, Drag & Drop, or Hover & Press Ctrl+V'}
           </span>
           <span className="text-[10px] text-slate-600 dark:text-slate-300 font-semibold mt-1 bg-[#E4F1F5] dark:bg-[#0f1b36] px-3 py-1 rounded-full border border-[#87C0CD]/40 dark:border-[#233554]">
             {isDocument
               ? 'Required Format: PDF | Max File Size: 15 MB (Auto-Compressed)'
-              : 'Formats: JPG, PNG, WEBP | Supports Clipboard Paste & Mobile Camera'}
+              : 'Formats: JPG, PNG, WEBP | Instant Hover Paste (Ctrl+V) & Mobile Camera'}
           </span>
           <input
             type="file"

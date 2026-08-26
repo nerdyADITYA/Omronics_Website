@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { Upload, X, ArrowLeft, ArrowRight, Star, Loader2, Clipboard } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Upload, X, ArrowLeft, ArrowRight, Star, Loader2, Clipboard, Sparkles } from 'lucide-react';
 import api from '../../services/api';
 
 export function MultiMediaUploader({ value = [], onChange, folder = 'products', label = 'Product Gallery Images' }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const containerRef = useRef(null);
 
   // Normalize value array into objects: [{ image_url, alt_text, display_order }]
   const images = (Array.isArray(value) ? value : []).map((img, index) => {
@@ -57,25 +59,38 @@ export function MultiMediaUploader({ value = [], onChange, folder = 'products', 
     }
   };
 
-  const handlePaste = (e) => {
+  // Instant Window Paste Listener on Hover or Focus
+  useEffect(() => {
     if (uploading) return;
-    const items = Array.from(e.clipboardData?.items || []);
-    const pastedFiles = [];
-    items.forEach((item, index) => {
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (file) {
-          const ext = item.type.split('/')[1] || 'png';
-          pastedFiles.push(new File([file], `pasted_image_${Date.now()}_${index}.${ext}`, { type: item.type }));
-        }
-      }
-    });
 
-    if (pastedFiles.length > 0) {
-      e.preventDefault();
-      handleUploadFiles(pastedFiles);
-    }
-  };
+    const handleWindowPaste = (e) => {
+      // Process paste if mouse is hovering over container OR container has focus
+      if (!isHovered && containerRef.current && !containerRef.current.contains(document.activeElement)) {
+        return;
+      }
+
+      const items = Array.from(e.clipboardData?.items || []);
+      const pastedFiles = [];
+      items.forEach((item, index) => {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            const ext = item.type.split('/')[1] || 'png';
+            pastedFiles.push(new File([file], `pasted_image_${Date.now()}_${index}.${ext}`, { type: item.type }));
+          }
+        }
+      });
+
+      if (pastedFiles.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleUploadFiles(pastedFiles);
+      }
+    };
+
+    window.addEventListener('paste', handleWindowPaste);
+    return () => window.removeEventListener('paste', handleWindowPaste);
+  }, [isHovered, uploading, images.length]);
 
   const handleRemove = (index) => {
     const updated = images.filter((_, i) => i !== index).map((img, idx) => ({ ...img, display_order: idx }));
@@ -94,19 +109,34 @@ export function MultiMediaUploader({ value = [], onChange, folder = 'products', 
   };
 
   return (
-    <div className="space-y-3 font-sans" onPaste={handlePaste}>
+    <div
+      ref={containerRef}
+      className="space-y-3 font-sans"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <div className="flex items-center justify-between">
         <label className="block text-xs font-bold text-[#113F67] dark:text-[#f8fafc] uppercase tracking-wider">
           {label} ({images.length})
         </label>
-        <span className="text-[10px] text-[#226597] dark:text-[#38bdf8] font-bold flex items-center space-x-1">
-          <Clipboard className="w-3 h-3" />
-          <span>Clipboard Paste & Mobile Camera Supported</span>
+        <span
+          className={`text-[10px] font-bold flex items-center space-x-1 transition ${
+            isHovered ? 'text-amber-500 animate-pulse font-extrabold' : 'text-[#226597] dark:text-[#38bdf8]'
+          }`}
+        >
+          {isHovered ? <Sparkles className="w-3 h-3 text-amber-500" /> : <Clipboard className="w-3 h-3" />}
+          <span>{isHovered ? 'Ready! Press Ctrl+V Now to Paste Gallery Images' : 'Hover & Press Ctrl+V to Paste Images'}</span>
         </span>
       </div>
 
       {/* Upload Zone */}
-      <div className="relative border-2 border-dashed border-[#87C0CD]/60 dark:border-[#233554] hover:border-[#226597] dark:hover:border-[#38bdf8] rounded-2xl p-6 text-center transition bg-[#F3F9FB] dark:bg-[#152238] hover:bg-white dark:hover:bg-[#1e2e4a] group shadow-xs focus:outline-none">
+      <div
+        className={`relative border-2 border-dashed rounded-2xl p-6 text-center transition group shadow-xs ${
+          isHovered
+            ? 'border-[#226597] dark:border-[#38bdf8] bg-white dark:bg-[#1e2e4a] ring-2 ring-[#226597]/30 shadow-md scale-[1.01]'
+            : 'border-[#87C0CD]/60 dark:border-[#233554] bg-[#F3F9FB] dark:bg-[#152238] hover:bg-white dark:hover:bg-[#1e2e4a]'
+        }`}
+      >
         <input
           type="file"
           multiple
@@ -118,14 +148,22 @@ export function MultiMediaUploader({ value = [], onChange, folder = 'products', 
 
         <div className="flex flex-col items-center justify-center space-y-2">
           <div className="w-12 h-12 rounded-xl bg-[#E4F1F5] dark:bg-[#0f1b36] border border-[#87C0CD]/50 dark:border-[#233554] flex items-center justify-center text-[#226597] dark:text-[#38bdf8] group-hover:scale-110 transition">
-            {uploading ? <Loader2 className="w-6 h-6 animate-spin text-[#226597] dark:text-[#38bdf8]" /> : <Upload className="w-6 h-6" />}
+            {uploading ? (
+              <Loader2 className="w-6 h-6 animate-spin text-[#226597] dark:text-[#38bdf8]" />
+            ) : (
+              <Upload className={`w-6 h-6 transition ${isHovered ? 'text-amber-500 scale-125' : ''}`} />
+            )}
           </div>
           <div>
             <span className="text-xs font-bold text-[#113F67] dark:text-[#f8fafc] block">
-              {uploading ? 'Processing & Converting Images to WebP...' : 'Click, Drag & Drop, or Paste Images (Ctrl+V)'}
+              {uploading
+                ? 'Processing & Converting Images to WebP...'
+                : isHovered
+                ? 'Hovering Active — Press Ctrl+V to Paste Images Immediately!'
+                : 'Click, Drag & Drop, or Hover & Press Ctrl+V'}
             </span>
             <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block pt-0.5">
-              Supports PNG, JPG, WEBP, Clipboard Screenshots, & Mobile Camera Capture
+              Supports PNG, JPG, WEBP, Instant Hover Clipboard Paste (Ctrl+V), & Mobile Camera Capture
             </span>
           </div>
         </div>
