@@ -88,3 +88,96 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #226597;
 }
+
+/* ==========================================================================
+   ADMIN PANEL DARK THEME OVERRIDES (High-Contrast & High-Readability Rules)
+   ========================================================================== */
+
+.dark .admin-root-wrapper {
+  background-color: #0b1329 !important;
+  color: #f8fafc !important;
+}
+
+.dark .admin-root-wrapper .bg-white,
+.dark .admin-root-wrapper .glass-panel,
+.dark .admin-root-wrapper .glass-card {
+  background-color: #152238 !important;
+  border-color: #233554 !important;
+  color: #f8fafc !important;
+}
+
+.dark .admin-root-wrapper .bg-\[\#F3F9FB\],
+.dark .admin-root-wrapper .bg-\[\#E4F1F5\] {
+  background-color: #0b1329 !important;
+  border-color: #233554 !important;
+  color: #f8fafc !important;
+}
+
+/* Headings & Text Color Transitions */
+.dark .admin-root-wrapper h1,
+.dark .admin-root-wrapper h2,
+.dark .admin-root-wrapper h3,
+.dark .admin-root-wrapper h4,
+.dark .admin-root-wrapper .text-\[\#113F67\],
+.dark .admin-root-wrapper .font-bold.text-\[\#113F67\] {
+  color: #f8fafc !important;
+}
+
+.dark .admin-root-wrapper .text-slate-500,
+.dark .admin-root-wrapper .text-slate-600,
+.dark .admin-root-wrapper .text-slate-700 {
+  color: #94a3b8 !important;
+}
+
+.dark .admin-root-wrapper .text-\[\#226597\] {
+  color: #38bdf8 !important;
+}
+
+.dark .admin-root-wrapper .border-\[\#87C0CD\]\/40,
+.dark .admin-root-wrapper .border-\[\#87C0CD\]\/30,
+.dark .admin-root-wrapper .border-\[\#87C0CD\]\/20,
+.dark .admin-root-wrapper .border-slate-200,
+.dark .admin-root-wrapper .border-slate-100 {
+  border-color: #233554 !important;
+}
+
+/* Tables & Headings in Dark Mode */
+.dark .admin-root-wrapper table {
+  color: #f8fafc !important;
+}
+
+.dark .admin-root-wrapper table thead,
+.dark .admin-root-wrapper table th,
+.dark .admin-root-wrapper .bg-\[\#F3F9FB\] {
+  background-color: #111c33 !important;
+  color: #38bdf8 !important;
+}
+
+.dark .admin-root-wrapper table tbody tr {
+  border-color: #233554 !important;
+}
+
+.dark .admin-root-wrapper table tbody tr:hover {
+  background-color: #1e2e4a !important;
+}
+
+/* Form Controls (Inputs, Selects, Textareas) in Dark Mode */
+.dark .admin-root-wrapper input,
+.dark .admin-root-wrapper select,
+.dark .admin-root-wrapper textarea {
+  background-color: #0b1329 !important;
+  border-color: #233554 !important;
+  color: #f8fafc !important;
+}
+
+.dark .admin-root-wrapper input::placeholder,
+.dark .admin-root-wrapper textarea::placeholder {
+  color: #64748b !important;
+}
+
+.dark .admin-root-wrapper input:focus,
+.dark .admin-root-wrapper select:focus,
+.dark .admin-root-wrapper textarea:focus {
+  border-color: #38bdf8 !important;
+  outline: none;
+}
