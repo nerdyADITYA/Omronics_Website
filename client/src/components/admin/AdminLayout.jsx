@@ -64,7 +64,8 @@ function AdminLayoutContent() {
   const activeTitle = currentNav ? currentNav.name : 'Admin Panel';
 
   return (
-    <div className={`min-h-screen flex font-sans transition-colors duration-300 admin-root-wrapper ${isDark ? 'dark bg-[#0b1329] text-[#f8fafc]' : 'bg-[#F3F9FB] text-[#113F67]'}`}>
+    <div className={isDark ? 'dark' : ''}>
+      <div className={`min-h-screen flex font-sans transition-colors duration-300 admin-root-wrapper ${isDark ? 'dark bg-[#0b1329] text-[#f8fafc]' : 'bg-[#F3F9FB] text-[#113F67]'}`}>
       {/* Sidebar */}
       <aside
         className={`${
@@ -245,6 +246,7 @@ function AdminLayoutContent() {
           <Outlet />
         </main>
       </div>
+    </div>
     </div>
   );
 }

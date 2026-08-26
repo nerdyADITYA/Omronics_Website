@@ -90,94 +90,147 @@
 }
 
 /* ==========================================================================
-   ADMIN PANEL DARK THEME OVERRIDES (High-Contrast & High-Readability Rules)
+   ADMIN PANEL DARK THEME OVERRIDES (Comprehensive Cards & Data Tables Rule)
    ========================================================================== */
 
+/* Outer wrapper background & text when dark class is active */
+.admin-root-wrapper.dark,
 .dark .admin-root-wrapper {
   background-color: #0b1329 !important;
   color: #f8fafc !important;
 }
 
+/* Cards, Modals, Stat Boxes & Glass Panels */
+.admin-root-wrapper.dark .bg-white,
 .dark .admin-root-wrapper .bg-white,
-.dark .admin-root-wrapper .glass-panel,
-.dark .admin-root-wrapper .glass-card {
+.dark .bg-white,
+.admin-root-wrapper.dark .glass-panel,
+.dark .glass-panel,
+.admin-root-wrapper.dark .glass-card,
+.dark .glass-card {
   background-color: #152238 !important;
   border-color: #233554 !important;
   color: #f8fafc !important;
 }
 
-.dark .admin-root-wrapper .bg-\[\#F3F9FB\],
-.dark .admin-root-wrapper .bg-\[\#E4F1F5\] {
+/* Background Ice/Light Tint Containers */
+.admin-root-wrapper.dark .bg-\[\#F3F9FB\],
+.dark .bg-\[\#F3F9FB\],
+.admin-root-wrapper.dark .bg-\[\#E4F1F5\],
+.dark .bg-\[\#E4F1F5\],
+.admin-root-wrapper.dark .bg-slate-50,
+.dark .bg-slate-50 {
   background-color: #0b1329 !important;
   border-color: #233554 !important;
   color: #f8fafc !important;
 }
 
-/* Headings & Text Color Transitions */
-.dark .admin-root-wrapper h1,
-.dark .admin-root-wrapper h2,
-.dark .admin-root-wrapper h3,
-.dark .admin-root-wrapper h4,
-.dark .admin-root-wrapper .text-\[\#113F67\],
-.dark .admin-root-wrapper .font-bold.text-\[\#113F67\] {
+/* Headings & Text Color Transitions in Dark Mode */
+.admin-root-wrapper.dark h1,
+.dark h1,
+.admin-root-wrapper.dark h2,
+.dark h2,
+.admin-root-wrapper.dark h3,
+.dark h3,
+.admin-root-wrapper.dark h4,
+.dark h4,
+.admin-root-wrapper.dark h5,
+.dark h5,
+.admin-root-wrapper.dark h6,
+.dark h6,
+.admin-root-wrapper.dark .text-\[\#113F67\],
+.dark .text-\[\#113F67\] {
   color: #f8fafc !important;
 }
 
-.dark .admin-root-wrapper .text-slate-500,
-.dark .admin-root-wrapper .text-slate-600,
-.dark .admin-root-wrapper .text-slate-700 {
+.admin-root-wrapper.dark .text-slate-500,
+.dark .text-slate-500,
+.admin-root-wrapper.dark .text-slate-600,
+.dark .text-slate-600,
+.admin-root-wrapper.dark .text-slate-700,
+.dark .text-slate-700,
+.admin-root-wrapper.dark .text-slate-400,
+.dark .text-slate-400 {
   color: #94a3b8 !important;
 }
 
-.dark .admin-root-wrapper .text-\[\#226597\] {
+.admin-root-wrapper.dark .text-\[\#226597\],
+.dark .text-\[\#226597\] {
   color: #38bdf8 !important;
 }
 
-.dark .admin-root-wrapper .border-\[\#87C0CD\]\/40,
-.dark .admin-root-wrapper .border-\[\#87C0CD\]\/30,
-.dark .admin-root-wrapper .border-\[\#87C0CD\]\/20,
-.dark .admin-root-wrapper .border-slate-200,
-.dark .admin-root-wrapper .border-slate-100 {
+.admin-root-wrapper.dark .border-\[\#87C0CD\]\/40,
+.dark .border-\[\#87C0CD\]\/40,
+.admin-root-wrapper.dark .border-\[\#87C0CD\]\/30,
+.dark .border-\[\#87C0CD\]\/30,
+.admin-root-wrapper.dark .border-\[\#87C0CD\]\/20,
+.dark .border-\[\#87C0CD\]\/20,
+.admin-root-wrapper.dark .border-slate-200,
+.dark .border-slate-200,
+.admin-root-wrapper.dark .border-slate-100,
+.dark .border-slate-100 {
   border-color: #233554 !important;
 }
 
-/* Tables & Headings in Dark Mode */
-.dark .admin-root-wrapper table {
+/* Data Tables in Dark Mode */
+.admin-root-wrapper.dark table,
+.dark table {
+  background-color: #152238 !important;
   color: #f8fafc !important;
 }
 
-.dark .admin-root-wrapper table thead,
-.dark .admin-root-wrapper table th,
-.dark .admin-root-wrapper .bg-\[\#F3F9FB\] {
+.admin-root-wrapper.dark table thead,
+.dark table thead,
+.admin-root-wrapper.dark table th,
+.dark table th {
   background-color: #111c33 !important;
   color: #38bdf8 !important;
-}
-
-.dark .admin-root-wrapper table tbody tr {
   border-color: #233554 !important;
 }
 
-.dark .admin-root-wrapper table tbody tr:hover {
+.admin-root-wrapper.dark table tbody tr,
+.dark table tbody tr {
+  background-color: #152238 !important;
+  border-color: #233554 !important;
+  color: #f8fafc !important;
+}
+
+.admin-root-wrapper.dark table tbody td,
+.dark table tbody td {
+  color: #e2e8f0 !important;
+  border-color: #233554 !important;
+}
+
+.admin-root-wrapper.dark table tbody tr:hover,
+.dark table tbody tr:hover {
   background-color: #1e2e4a !important;
 }
 
 /* Form Controls (Inputs, Selects, Textareas) in Dark Mode */
-.dark .admin-root-wrapper input,
-.dark .admin-root-wrapper select,
-.dark .admin-root-wrapper textarea {
+.admin-root-wrapper.dark input,
+.dark input,
+.admin-root-wrapper.dark select,
+.dark select,
+.admin-root-wrapper.dark textarea,
+.dark textarea {
   background-color: #0b1329 !important;
   border-color: #233554 !important;
   color: #f8fafc !important;
 }
 
-.dark .admin-root-wrapper input::placeholder,
-.dark .admin-root-wrapper textarea::placeholder {
+.admin-root-wrapper.dark input::placeholder,
+.dark input::placeholder,
+.admin-root-wrapper.dark textarea::placeholder,
+.dark textarea::placeholder {
   color: #64748b !important;
 }
 
-.dark .admin-root-wrapper input:focus,
-.dark .admin-root-wrapper select:focus,
-.dark .admin-root-wrapper textarea:focus {
+.admin-root-wrapper.dark input:focus,
+.dark input:focus,
+.admin-root-wrapper.dark select:focus,
+.dark select:focus,
+.admin-root-wrapper.dark textarea:focus,
+.dark textarea:focus {
   border-color: #38bdf8 !important;
   outline: none;
 }
