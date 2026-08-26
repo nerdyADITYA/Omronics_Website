@@ -83,7 +83,7 @@ function AdminLayoutContent() {
                   <img
                     src={settings.logo}
                     alt={settings.company_name || 'Omronics'}
-                    className="h-9 max-w-[140px] object-contain rounded-lg bg-white p-1"
+                    className="h-9 max-w-[140px] object-contain rounded-lg bg-white p-1 admin-logo-img"
                   />
                 ) : (
                   <>

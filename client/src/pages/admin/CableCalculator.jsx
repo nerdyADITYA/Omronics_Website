@@ -388,7 +388,7 @@ export function CableCalculator() {
                             className={`px-3 py-1.5 text-xs font-bold rounded-l-xl border border-r-0 transition flex items-center space-x-1.5 ${
                               isSelected
                                 ? 'bg-[#226597] text-white border-[#226597] shadow-sm'
-                                : 'bg-[#F3F9FB] text-[#113F67] border-[#87C0CD]/40 hover:bg-[#E4F1F5]'
+                                : 'bg-[#F3F9FB] dark:bg-[#152238] text-[#113F67] dark:text-slate-200 border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#E4F1F5]'
                             }`}
                           >
                             <Tag className="w-3 h-3 opacity-75" />
@@ -401,7 +401,7 @@ export function CableCalculator() {
                             className={`px-2 py-1.5 text-xs font-bold rounded-r-xl border border-l-0 transition ${
                               isSelected
                                 ? 'bg-[#113F67] text-rose-300 hover:text-white border-[#226597]'
-                                : 'bg-[#F3F9FB] text-slate-400 hover:text-rose-600 border-[#87C0CD]/40 hover:bg-rose-50'
+                                : 'bg-[#F3F9FB] dark:bg-[#152238] text-slate-400 hover:text-rose-600 border-[#87C0CD]/40 dark:border-[#233554] hover:bg-rose-50'
                             }`}
                             title="Delete this variant"
                           >
@@ -412,14 +412,14 @@ export function CableCalculator() {
                     })}
                   </div>
                 ) : (
-                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 font-medium">
+                  <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl text-[11px] text-amber-800 dark:text-amber-200 font-medium">
                     No saved variants yet for this product. Enter your specs below and click <strong>Save Variant Setup</strong> to create one!
                   </div>
                 )}
               </div>
 
               {currentProduct && (
-                <div className="p-3 bg-[#F3F9FB] border border-[#87C0CD]/30 rounded-xl flex items-center justify-between text-xs">
+                <div className="p-3 bg-[#F3F9FB] dark:bg-[#0f1b36] border border-[#87C0CD]/30 dark:border-[#233554] rounded-xl flex items-center justify-between text-xs">
                   <span className="text-slate-500 font-medium">Saved Product Catalog Price:</span>
                   <span className="font-extrabold text-[#113F67]">
                     {currentProduct.current_price ? `₹${Number(currentProduct.current_price).toLocaleString('en-IN')}` : 'Not set'}
@@ -437,13 +437,13 @@ export function CableCalculator() {
                     2. Live Adjustable Parameters
                   </h2>
                 </div>
-                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800">
+                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 dark:text-sky-300 text-sky-800">
                   {activeVariantId ? `Editing Variant #${activeVariantId}` : 'Creating New Variant'}
                 </span>
               </div>
 
               {/* Header Specifications */}
-              <div className="space-y-3 bg-[#F3F9FB]/60 p-4 rounded-xl border border-[#87C0CD]/30">
+              <div className="space-y-3 bg-[#F3F9FB]/60 dark:bg-[#0f1b36] p-4 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#226597] block">Header Specifications</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -480,7 +480,7 @@ export function CableCalculator() {
               </div>
 
               {/* Cable Dimension & Length */}
-              <div className="space-y-3 bg-[#F3F9FB]/60 p-4 rounded-xl border border-[#87C0CD]/30">
+              <div className="space-y-3 bg-[#F3F9FB]/60 dark:bg-[#0f1b36] p-4 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#226597] block">Raw Cable & Length</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -527,7 +527,7 @@ export function CableCalculator() {
                           className={`px-2.5 py-1 text-[10px] font-bold rounded-md border transition ${
                             Number(params.default_length) === len
                               ? 'bg-[#226597] text-white border-[#226597]'
-                              : 'bg-white text-[#113F67] border-[#87C0CD]/40 hover:bg-[#E4F1F5]'
+                              : 'bg-white dark:bg-[#152238] text-[#113F67] dark:text-slate-200 border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#E4F1F5]'
                           }`}
                         >
                           {len}m
@@ -539,7 +539,7 @@ export function CableCalculator() {
               </div>
 
               {/* Connectors, Labour & Battery */}
-              <div className="space-y-3 bg-[#F3F9FB]/60 p-4 rounded-xl border border-[#87C0CD]/30">
+              <div className="space-y-3 bg-[#F3F9FB]/60 dark:bg-[#0f1b36] p-4 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#226597] block">Connectors & Assembly Costs</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -664,10 +664,10 @@ export function CableCalculator() {
               </div>
 
               {/* Profit Margin % */}
-              <div className="space-y-2 bg-[#F3F9FB]/60 p-4 rounded-xl border border-[#87C0CD]/30">
+              <div className="space-y-2 bg-[#F3F9FB]/60 dark:bg-[#0f1b36] p-4 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-[11px] font-bold text-[#113F67]">Profit Margin (%)</label>
-                  <span className="text-xs font-extrabold text-emerald-700">{params.margin_percentage}%</span>
+                  <span className="text-xs font-extrabold text-emerald-700 dark:text-emerald-400">{params.margin_percentage}%</span>
                 </div>
                 <input
                   type="number"
@@ -688,7 +688,7 @@ export function CableCalculator() {
                       className={`px-2.5 py-1 text-[10px] font-bold rounded-md border transition ${
                         Number(params.margin_percentage) === m
                           ? 'bg-emerald-700 text-white border-emerald-700'
-                          : 'bg-white text-[#113F67] border-[#87C0CD]/40 hover:bg-[#E4F1F5]'
+                          : 'bg-white dark:bg-[#152238] text-[#113F67] dark:text-slate-200 border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#E4F1F5]'
                       }`}
                     >
                       {m}%
@@ -707,37 +707,37 @@ export function CableCalculator() {
                   <Zap className="w-5 h-5 text-amber-500" />
                   <span>Cost Calculation Breakdown</span>
                 </h2>
-                <span className="text-[10px] uppercase tracking-widest font-extrabold text-[#226597] bg-[#E4F1F5] px-3 py-1 rounded-full border border-[#87C0CD]/40">
+                <span className="text-[10px] uppercase tracking-widest font-extrabold text-[#226597] dark:text-[#38bdf8] bg-[#E4F1F5] dark:bg-[#0f1b36] px-3 py-1 rounded-full border border-[#87C0CD]/40 dark:border-[#233554]">
                   Formula Engine
                 </span>
               </div>
 
               {/* Banner Header Table */}
-              <div className="bg-[#FFF8E7] border border-amber-300 rounded-xl p-4 text-center space-y-1">
-                <div className="text-xs font-black tracking-wide text-amber-950 uppercase">
+              <div className="bg-[#FFF8E7] dark:bg-[#2a1e0c] border border-amber-300 dark:border-amber-700/60 rounded-xl p-4 text-center space-y-1">
+                <div className="text-xs font-black tracking-wide text-amber-950 dark:text-amber-200 uppercase">
                   {params.frame_size || 'FRAME SIZE (SPECIFY)'}
                 </div>
-                <div className="text-xs font-black tracking-wide text-amber-950 uppercase">
+                <div className="text-xs font-black tracking-wide text-amber-950 dark:text-amber-200 uppercase">
                   {params.motor_type || 'POWER / MOTOR TYPE (SPECIFY)'}
                 </div>
-                <div className="text-sm font-black text-amber-900 font-mono pt-1">
+                <div className="text-sm font-black text-amber-900 dark:text-amber-300 font-mono pt-1">
                   {params.part_code || 'PART CODE (SPECIFY)'}
                 </div>
               </div>
 
               {/* Line Items Table */}
-              <div className="border border-[#87C0CD]/30 rounded-xl overflow-hidden text-xs">
+              <div className="border border-[#87C0CD]/30 dark:border-[#233554] rounded-xl overflow-hidden text-xs">
                 <table className="w-full text-left">
-                  <thead className="bg-[#F3F9FB] uppercase text-[10px] font-extrabold text-[#113F67] border-b border-[#87C0CD]/30">
+                  <thead className="bg-[#F3F9FB] dark:bg-[#111c33] uppercase text-[10px] font-extrabold text-[#113F67] dark:text-[#38bdf8] border-b border-[#87C0CD]/30 dark:border-[#233554]">
                     <tr>
                       <th className="px-4 py-3">Component / Specification</th>
                       <th className="px-4 py-3 text-right">Details</th>
                       <th className="px-4 py-3 text-right">Amount (₹)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#87C0CD]/20 text-[#113F67]">
+                  <tbody className="divide-y divide-[#87C0CD]/20 dark:divide-[#233554] text-[#113F67]">
                     <tr>
-                      <td className="px-4 py-3 font-extrabold bg-amber-50/50">LENGTH</td>
+                      <td className="px-4 py-3 font-extrabold bg-[#E4F1F5] dark:bg-[#111c33] text-[#226597] dark:text-[#38bdf8]">LENGTH</td>
                       <td className="px-4 py-3 text-right font-extrabold text-[#226597]">{lengthVal} meters</td>
                       <td className="px-4 py-3 text-right font-mono font-bold">₹{cablePerMeter}/m</td>
                     </tr>
