@@ -15,6 +15,8 @@ import {
   FileCode,
   Tag,
   Edit3,
+  Filter,
+  X,
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -23,13 +25,40 @@ export function CableCalculator() {
   const [servoProducts, setServoProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [configurations, setConfigurations] = useState([]);
+
+  // Active Variant Selection State
+  const [activeVariantId, setActiveVariantId] = useState(null); // null means creating a NEW variant
+
+  // Setup Overview Filter Dropdowns State
+  const [filterProductName, setFilterProductName] = useState('ALL');
+  const [filterPartCode, setFilterPartCode] = useState('ALL');
+
+  // Derive unique product names for filter dropdown
+  const uniqueProductNames = Array.from(
+    new Set(configurations.map((c) => c.product_name).filter(Boolean))
+  ).sort();
+
+  // Derive unique part codes for filter dropdown (filtered by selected product if set)
+  const uniquePartCodes = Array.from(
+    new Set(
+      configurations
+        .filter((c) => filterProductName === 'ALL' || c.product_name === filterProductName)
+        .map((c) => c.part_code)
+        .filter(Boolean)
+    )
+  ).sort();
+
+  // Filter configurations list based on dropdown selections
+  const filteredConfigurations = configurations.filter((c) => {
+    const matchProduct = filterProductName === 'ALL' || c.product_name === filterProductName;
+    const matchPartCode = filterPartCode === 'ALL' || c.part_code === filterPartCode;
+    return matchProduct && matchPartCode;
+  });
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [feedback, setFeedback] = useState(null);
-
-  // Active Variant Selection State
-  const [activeVariantId, setActiveVariantId] = useState(null); // null means creating a NEW variant
 
   // Live Adjustable Form State
   const [params, setParams] = useState({
@@ -857,16 +886,72 @@ export function CableCalculator() {
           </div>
         </div>
       ) : (
-        /* Tab 2: Complete Unfiltered Setup Overview Table */
+        /* Tab 2: Complete Setup Overview Table with Product Name & Part Code Filters */
         <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-6 space-y-6 shadow-sm">
-          <div className="flex items-center justify-between border-b border-[#87C0CD]/30 pb-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-[#87C0CD]/30 pb-4">
             <div>
               <h2 className="text-base font-extrabold text-[#113F67] font-display">
-                All Saved Part Code Variant Configurations ({configurations.length})
+                All Saved Part Code Variant Configurations ({filteredConfigurations.length} of {configurations.length})
               </h2>
               <p className="text-xs text-slate-500">
                 Complete overview of all configured Part Codes across all Servo Cable products.
               </p>
+            </div>
+
+            {/* Interactive Dropdown Filters */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Product Name Filter Dropdown */}
+              <div className="flex items-center space-x-1.5">
+                <Filter className="w-3.5 h-3.5 text-[#226597]" />
+                <select
+                  value={filterProductName}
+                  onChange={(e) => {
+                    setFilterProductName(e.target.value);
+                    setFilterPartCode('ALL'); // Reset part code filter when product changes
+                  }}
+                  className="px-3 py-1.5 bg-[#F3F9FB] border border-[#87C0CD]/40 rounded-xl text-xs font-bold text-[#113F67] focus:outline-none focus:border-[#226597]"
+                >
+                  <option value="ALL">All Products ({uniqueProductNames.length})</option>
+                  {uniqueProductNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Part Code Filter Dropdown */}
+              <div className="flex items-center space-x-1.5">
+                <Tag className="w-3.5 h-3.5 text-[#226597]" />
+                <select
+                  value={filterPartCode}
+                  onChange={(e) => setFilterPartCode(e.target.value)}
+                  className="px-3 py-1.5 bg-[#F3F9FB] border border-[#87C0CD]/40 rounded-xl text-xs font-bold text-[#113F67] focus:outline-none focus:border-[#226597]"
+                >
+                  <option value="ALL">All Part Codes ({uniquePartCodes.length})</option>
+                  {uniquePartCodes.map((code) => (
+                    <option key={code} value={code}>
+                      {code}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Reset Filters Pill */}
+              {(filterProductName !== 'ALL' || filterPartCode !== 'ALL') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterProductName('ALL');
+                    setFilterPartCode('ALL');
+                  }}
+                  className="px-2.5 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
+                  title="Reset all filters"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Reset</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -886,14 +971,16 @@ export function CableCalculator() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#87C0CD]/20">
-                {configurations.length === 0 ? (
+                {filteredConfigurations.length === 0 ? (
                   <tr>
                     <td colSpan="9" className="px-4 py-8 text-center text-slate-500">
-                      No Part Code variant configurations saved yet. Select a product on the calculator tab to configure!
+                      {configurations.length === 0
+                        ? 'No Part Code variant configurations saved yet. Select a product on the calculator tab to configure!'
+                        : 'No variant configurations match the selected Product Name / Part Code dropdown filters.'}
                     </td>
                   </tr>
                 ) : (
-                  configurations.map((c) => {
+                  filteredConfigurations.map((c) => {
                     const len = Number(c.default_length) || 0;
                     const cCost = Number(c.cable_cost_per_meter) || 0;
                     const c1 = Number(c.connector1_cost) || 0;
