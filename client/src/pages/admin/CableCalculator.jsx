@@ -24,22 +24,22 @@ export function CableCalculator() {
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState(null);
 
-  // Live Adjustable Form State
+  // Live Adjustable Form State (Empty initial values, clear placeholders)
   const [params, setParams] = useState({
     product_id: '',
-    frame_size: '40/60/80 FRAME SIZE',
-    motor_type: '100W TO 750W - INCREMENTAL',
-    part_code: 'S6-L-P014-xx.x',
+    frame_size: '',
+    motor_type: '',
+    part_code: '',
     default_length: 5,
-    cable_dimension: '2X2X0.20SQMM SHD',
-    cable_cost_per_meter: 90,
-    connector1_name: 'DB9-MALE',
-    connector1_cost: 50,
-    connector2_name: 'MICRO MOTOR 7 PIN',
-    connector2_cost: 250,
-    labour_cost: 150,
+    cable_dimension: '',
+    cable_cost_per_meter: '',
+    connector1_name: '',
+    connector1_cost: '',
+    connector2_name: '',
+    connector2_cost: '',
+    labour_cost: '',
     battery_name: '',
-    battery_cost: 0,
+    battery_cost: '',
     margin_percentage: 35,
     additional_components: [],
   });
@@ -81,38 +81,38 @@ export function CableCalculator() {
     if (found) {
       setParams({
         product_id: String(found.product_id),
-        frame_size: found.frame_size || '40/60/80 FRAME SIZE',
-        motor_type: found.motor_type || '100W TO 750W - INCREMENTAL',
-        part_code: found.part_code || selectedProd?.model_number || 'S6-L-P014-xx.x',
-        default_length: Number(found.default_length) || 5,
-        cable_dimension: found.cable_dimension || '2X2X0.20SQMM SHD',
-        cable_cost_per_meter: Number(found.cable_cost_per_meter) || 90,
-        connector1_name: found.connector1_name || 'DB9-MALE',
-        connector1_cost: Number(found.connector1_cost) || 50,
-        connector2_name: found.connector2_name || 'MICRO MOTOR 7 PIN',
-        connector2_cost: Number(found.connector2_cost) || 250,
-        labour_cost: Number(found.labour_cost) || 150,
+        frame_size: found.frame_size || '',
+        motor_type: found.motor_type || '',
+        part_code: found.part_code || selectedProd?.model_number || '',
+        default_length: found.default_length !== undefined && found.default_length !== null ? Number(found.default_length) : 5,
+        cable_dimension: found.cable_dimension || '',
+        cable_cost_per_meter: found.cable_cost_per_meter !== undefined && found.cable_cost_per_meter !== null ? found.cable_cost_per_meter : '',
+        connector1_name: found.connector1_name || '',
+        connector1_cost: found.connector1_cost !== undefined && found.connector1_cost !== null ? found.connector1_cost : '',
+        connector2_name: found.connector2_name || '',
+        connector2_cost: found.connector2_cost !== undefined && found.connector2_cost !== null ? found.connector2_cost : '',
+        labour_cost: found.labour_cost !== undefined && found.labour_cost !== null ? found.labour_cost : '',
         battery_name: found.battery_name || '',
-        battery_cost: Number(found.battery_cost) || 0,
-        margin_percentage: Number(found.margin_percentage) || 35,
+        battery_cost: found.battery_cost !== undefined && found.battery_cost !== null ? found.battery_cost : '',
+        margin_percentage: found.margin_percentage !== undefined && found.margin_percentage !== null ? Number(found.margin_percentage) : 35,
         additional_components: Array.isArray(found.additional_components) ? found.additional_components : [],
       });
     } else {
       setParams({
         product_id: String(selectedProductId),
-        frame_size: '40/60/80 FRAME SIZE',
-        motor_type: '100W TO 750W - INCREMENTAL',
-        part_code: selectedProd?.model_number || 'S6-L-P014-xx.x',
+        frame_size: '',
+        motor_type: '',
+        part_code: selectedProd?.model_number || '',
         default_length: 5,
-        cable_dimension: '2X2X0.20SQMM SHD',
-        cable_cost_per_meter: 90,
-        connector1_name: 'DB9-MALE',
-        connector1_cost: 50,
-        connector2_name: 'MICRO MOTOR 7 PIN',
-        connector2_cost: 250,
-        labour_cost: 150,
+        cable_dimension: '',
+        cable_cost_per_meter: '',
+        connector1_name: '',
+        connector1_cost: '',
+        connector2_name: '',
+        connector2_cost: '',
+        labour_cost: '',
         battery_name: '',
-        battery_cost: 0,
+        battery_cost: '',
         margin_percentage: 35,
         additional_components: [],
       });
@@ -320,27 +320,30 @@ export function CableCalculator() {
                     <label className="block text-[11px] font-bold text-[#113F67] mb-1">Frame Size Header</label>
                     <input
                       type="text"
+                      placeholder="e.g. 40/60/80 FRAME SIZE"
                       value={params.frame_size}
                       onChange={(e) => setParams({ ...params, frame_size: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67]"
+                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67] placeholder:text-slate-400"
                     />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-[#113F67] mb-1">Power / Motor Type Header</label>
                     <input
                       type="text"
+                      placeholder="e.g. 100W TO 750W - INCREMENTAL"
                       value={params.motor_type}
                       onChange={(e) => setParams({ ...params, motor_type: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67]"
+                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67] placeholder:text-slate-400"
                     />
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-[11px] font-bold text-[#113F67] mb-1">Part Code</label>
                     <input
                       type="text"
+                      placeholder="e.g. S6-L-P014-xx.x"
                       value={params.part_code}
                       onChange={(e) => setParams({ ...params, part_code: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-mono font-bold text-[#226597]"
+                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-mono font-bold text-[#226597] placeholder:text-slate-400"
                     />
                   </div>
                 </div>
@@ -354,9 +357,10 @@ export function CableCalculator() {
                     <label className="block text-[11px] font-bold text-[#113F67] mb-1">Cable Dimension Spec</label>
                     <input
                       type="text"
+                      placeholder="e.g. 2X2X0.20SQMM SHD"
                       value={params.cable_dimension}
                       onChange={(e) => setParams({ ...params, cable_dimension: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67]"
+                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67] placeholder:text-slate-400"
                     />
                   </div>
                   <div>
@@ -364,9 +368,10 @@ export function CableCalculator() {
                     <input
                       type="number"
                       step="0.01"
+                      placeholder="e.g. 90"
                       value={params.cable_cost_per_meter}
                       onChange={(e) => setParams({ ...params, cable_cost_per_meter: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67]"
+                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
                     />
                   </div>
                   <div className="sm:col-span-2">
@@ -378,9 +383,10 @@ export function CableCalculator() {
                       type="number"
                       step="0.5"
                       min="0.5"
+                      placeholder="e.g. 5"
                       value={params.default_length}
                       onChange={(e) => setParams({ ...params, default_length: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67]"
+                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
                     />
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {[3, 5, 10, 15, 20, 25, 30].map((len) => (
@@ -410,9 +416,10 @@ export function CableCalculator() {
                     <label className="block text-[11px] font-bold text-[#113F67] mb-1">Connector 1 Name</label>
                     <input
                       type="text"
+                      placeholder="e.g. DB9-MALE"
                       value={params.connector1_name}
                       onChange={(e) => setParams({ ...params, connector1_name: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67]"
+                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67] placeholder:text-slate-400"
                     />
                   </div>
                   <div>
@@ -420,18 +427,20 @@ export function CableCalculator() {
                     <input
                       type="number"
                       step="0.01"
+                      placeholder="e.g. 50"
                       value={params.connector1_cost}
                       onChange={(e) => setParams({ ...params, connector1_cost: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67]"
+                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
                     />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-[#113F67] mb-1">Connector 2 Name</label>
                     <input
                       type="text"
+                      placeholder="e.g. MICRO MOTOR 7 PIN"
                       value={params.connector2_name}
                       onChange={(e) => setParams({ ...params, connector2_name: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67]"
+                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67] placeholder:text-slate-400"
                     />
                   </div>
                   <div>
@@ -439,9 +448,10 @@ export function CableCalculator() {
                     <input
                       type="number"
                       step="0.01"
+                      placeholder="e.g. 250"
                       value={params.connector2_cost}
                       onChange={(e) => setParams({ ...params, connector2_cost: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67]"
+                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
                     />
                   </div>
                   <div>
@@ -449,9 +459,10 @@ export function CableCalculator() {
                     <input
                       type="number"
                       step="0.01"
+                      placeholder="e.g. 150"
                       value={params.labour_cost}
                       onChange={(e) => setParams({ ...params, labour_cost: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67]"
+                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
                     />
                   </div>
                   <div>
@@ -459,9 +470,10 @@ export function CableCalculator() {
                     <input
                       type="number"
                       step="0.01"
+                      placeholder="e.g. 0"
                       value={params.battery_cost}
                       onChange={(e) => setParams({ ...params, battery_cost: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67]"
+                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
                     />
                   </div>
                 </div>
@@ -491,17 +503,17 @@ export function CableCalculator() {
                             placeholder={`e.g. Connector ${idx + 3} / Terminal`}
                             value={item.name}
                             onChange={(e) => handleUpdateExtraComponent(idx, 'name', e.target.value)}
-                            className="flex-1 px-2.5 py-1.5 bg-[#F3F9FB] border border-[#87C0CD]/30 rounded text-xs font-semibold text-[#113F67]"
+                            className="flex-1 px-2.5 py-1.5 bg-[#F3F9FB] border border-[#87C0CD]/30 rounded text-xs font-semibold text-[#113F67] placeholder:text-slate-400"
                           />
                           <div className="w-28 flex items-center">
                             <span className="text-xs font-bold text-slate-500 mr-1">₹</span>
                             <input
                               type="number"
                               step="0.01"
-                              placeholder="Cost"
+                              placeholder="e.g. 75"
                               value={item.cost}
                               onChange={(e) => handleUpdateExtraComponent(idx, 'cost', e.target.value)}
-                              className="w-full px-2.5 py-1.5 bg-[#F3F9FB] border border-[#87C0CD]/30 rounded text-xs font-bold text-[#113F67]"
+                              className="w-full px-2.5 py-1.5 bg-[#F3F9FB] border border-[#87C0CD]/30 rounded text-xs font-bold text-[#113F67] placeholder:text-slate-400"
                             />
                           </div>
                           <button
@@ -532,9 +544,10 @@ export function CableCalculator() {
                   min="0"
                   max="500"
                   step="1"
+                  placeholder="e.g. 35"
                   value={params.margin_percentage}
                   onChange={(e) => setParams({ ...params, margin_percentage: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67]"
+                  className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
                 />
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {[20, 25, 30, 35, 40, 45, 50].map((m) => (
@@ -572,13 +585,13 @@ export function CableCalculator() {
               {/* Banner Header Table */}
               <div className="bg-[#FFF8E7] border border-amber-300 rounded-xl p-4 text-center space-y-1">
                 <div className="text-xs font-black tracking-wide text-amber-950 uppercase">
-                  {params.frame_size || '40/60/80 FRAME SIZE'}
+                  {params.frame_size || 'FRAME SIZE (SPECIFY)'}
                 </div>
                 <div className="text-xs font-black tracking-wide text-amber-950 uppercase">
-                  {params.motor_type || '100W TO 750W - INCREMENTAL'}
+                  {params.motor_type || 'POWER / MOTOR TYPE (SPECIFY)'}
                 </div>
                 <div className="text-sm font-black text-amber-900 font-mono pt-1">
-                  {params.part_code || 'S6-L-P014-xx.x'}
+                  {params.part_code || 'PART CODE (SPECIFY)'}
                 </div>
               </div>
 
@@ -602,7 +615,7 @@ export function CableCalculator() {
                       <td className="px-4 py-3 font-semibold">
                         Dimensions
                         <span className="block text-[10px] text-slate-500 font-normal">
-                          {params.cable_dimension || '2X2X0.20SQMM SHD'}
+                          {params.cable_dimension || 'Not specified'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right text-slate-500">{lengthVal}m × ₹{cablePerMeter}</td>
@@ -612,7 +625,7 @@ export function CableCalculator() {
                       <td className="px-4 py-3 font-semibold">
                         Connector 1
                         <span className="block text-[10px] text-slate-500 font-normal">
-                          {params.connector1_name || 'DB9-MALE'}
+                          {params.connector1_name || 'Not specified'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right text-slate-500">Unit Price</td>
@@ -622,7 +635,7 @@ export function CableCalculator() {
                       <td className="px-4 py-3 font-semibold">
                         Connector 2
                         <span className="block text-[10px] text-slate-500 font-normal">
-                          {params.connector2_name || 'MICRO MOTOR 7 PIN'}
+                          {params.connector2_name || 'Not specified'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right text-slate-500">Unit Price</td>
@@ -753,11 +766,13 @@ export function CableCalculator() {
                       <td className="px-4 py-3.5 font-mono text-[#226597] font-bold">{c.part_code || '-'}</td>
                       <td className="px-4 py-3.5">
                         <span className="font-semibold">{c.cable_dimension || '-'}</span>
-                        <span className="block text-[10px] text-slate-500 font-mono">₹{c.cable_cost_per_meter}/m</span>
+                        <span className="block text-[10px] text-slate-500 font-mono">
+                          {c.cable_cost_per_meter ? `₹${c.cable_cost_per_meter}/m` : '-'}
+                        </span>
                       </td>
                       <td className="px-4 py-3.5 space-y-0.5">
-                        <span className="block text-[11px]">{c.connector1_name}: ₹{c.connector1_cost}</span>
-                        <span className="block text-[11px]">{c.connector2_name}: ₹{c.connector2_cost}</span>
+                        {c.connector1_name && <span className="block text-[11px]">{c.connector1_name}: ₹{c.connector1_cost}</span>}
+                        {c.connector2_name && <span className="block text-[11px]">{c.connector2_name}: ₹{c.connector2_cost}</span>}
                         {Array.isArray(c.additional_components) &&
                           c.additional_components.map((item, idx) => (
                             <span key={idx} className="block text-[10px] text-amber-800 font-semibold">
@@ -765,7 +780,7 @@ export function CableCalculator() {
                             </span>
                           ))}
                       </td>
-                      <td className="px-4 py-3.5 font-mono">₹{c.labour_cost}</td>
+                      <td className="px-4 py-3.5 font-mono">{c.labour_cost ? `₹${c.labour_cost}` : '-'}</td>
                       <td className="px-4 py-3.5 font-bold text-emerald-700">{c.margin_percentage}%</td>
                       <td className="px-4 py-3.5 font-bold font-mono text-[#113F67]">
                         {c.current_product_price ? `₹${Number(c.current_product_price).toLocaleString('en-IN')}` : '-'}
