@@ -15,6 +15,7 @@ import {
   Cpu,
   ChevronLeft,
   ChevronRight,
+  Calculator,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useSettings } from '../../context/SettingsContext';
@@ -44,6 +45,7 @@ export function AdminLayout() {
   const navItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Products', path: '/admin/products', icon: Package },
+    { name: 'Cable Calculator', path: '/admin/cable-calculator', icon: Calculator },
     { name: 'Categories', path: '/admin/categories', icon: FolderTree },
     { name: 'Services', path: '/admin/services', icon: Wrench },
     { name: 'Industries', path: '/admin/industries', icon: Factory },

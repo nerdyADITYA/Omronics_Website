@@ -9,6 +9,7 @@ import testimonialRoutes from './testimonial.routes.js';
 import enquiryRoutes from './enquiry.routes.js';
 import uploadRoutes from './upload.routes.js';
 import settingsRoutes from './settings.routes.js';
+import cableCostRoutes from './cableCost.routes.js';
 import seoController from '../controllers/seo.controller.js';
 
 const router = Router();
@@ -33,5 +34,6 @@ router.use('/testimonials', testimonialRoutes);
 router.use('/enquiries', enquiryRoutes);
 router.use('/uploads', uploadRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/cable-costs', cableCostRoutes);
 
 export default router;

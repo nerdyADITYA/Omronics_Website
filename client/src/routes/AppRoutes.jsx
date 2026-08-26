@@ -28,6 +28,7 @@ import { ClientManagement } from '../pages/admin/ClientManagement';
 import { TestimonialManagement } from '../pages/admin/TestimonialManagement';
 import { EnquiryManagement } from '../pages/admin/EnquiryManagement';
 import { SettingsManagement } from '../pages/admin/SettingsManagement';
+import { CableCalculator } from '../pages/admin/CableCalculator';
 
 export function AppRoutes() {
   return (
@@ -51,6 +52,7 @@ export function AppRoutes() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="products" element={<ProductManagement />} />
+          <Route path="cable-calculator" element={<CableCalculator />} />
           <Route path="categories" element={<CategoryManagement />} />
           <Route path="services" element={<ServiceManagement />} />
           <Route path="industries" element={<IndustryManagement />} />
