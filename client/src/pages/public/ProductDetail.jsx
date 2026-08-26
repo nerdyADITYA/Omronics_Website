@@ -141,6 +141,7 @@ export function ProductDetail() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [selectedVariantId, setSelectedVariantId] = useState('');
 
   useEffect(() => {
     async function fetchProduct() {
@@ -149,6 +150,9 @@ export function ProductDetail() {
         const res = await api.get(`/products/slug/${slug}`);
         if (res.success && res.data) {
           setProduct(res.data);
+          if (Array.isArray(res.data.part_code_variants) && res.data.part_code_variants.length > 0) {
+            setSelectedVariantId(String(res.data.part_code_variants[0].id));
+          }
         }
       } catch (err) {
         console.error('Failed to load product details', err);
@@ -200,6 +204,15 @@ export function ProductDetail() {
 
   const currentImageUrl = galleryImages[selectedImageIndex] || null;
   const embedUrl = getYouTubeEmbedUrl(product.video_url);
+
+  const variants = Array.isArray(product.part_code_variants) ? product.part_code_variants : [];
+  const selectedVariant = variants.find((v) => String(v.id) === String(selectedVariantId)) || null;
+
+  const displayPrice = selectedVariant
+    ? selectedVariant.calculated_price
+    : product.price !== null && product.price !== undefined && product.price !== ''
+    ? Number(product.price)
+    : null;
 
   const handlePrevImage = () => {
     setSelectedImageIndex((prev) => (prev === 0 ? galleryImages.length - 1 : prev - 1));
@@ -352,12 +365,81 @@ export function ProductDetail() {
                     Model: {product.model_number}
                   </p>
                 )}
-                {product.price !== null && product.price !== undefined && product.price !== '' && (
-                  <div className="mt-3 flex items-baseline space-x-2">
+
+                {/* Part Code Variant Selector Dropdown */}
+                {variants.length > 0 && (
+                  <div className="mt-4 p-4 rounded-2xl bg-[#E4F1F5]/80 border border-[#87C0CD]/40 space-y-2 font-sans shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[11px] font-extrabold text-[#113F67] uppercase tracking-wider">
+                        Select Part Code & Spec Variant
+                      </label>
+                      <span className="text-[10px] font-extrabold text-[#226597] bg-white px-2 py-0.5 rounded border border-[#87C0CD]/30">
+                        {variants.length} Part Code{variants.length > 1 ? 's' : ''} Available
+                      </span>
+                    </div>
+                    <select
+                      value={selectedVariantId}
+                      onChange={(e) => setSelectedVariantId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-white border border-[#87C0CD]/50 rounded-xl text-xs font-bold text-[#113F67] focus:outline-none focus:border-[#226597] shadow-xs cursor-pointer"
+                    >
+                      <option value="">-- Default Price (₹{Number(product.price || 0).toLocaleString('en-IN')}) --</option>
+                      {variants.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.part_code || 'Part Code'} {v.motor_type ? `(${v.motor_type})` : ''} - ₹{v.calculated_price.toLocaleString('en-IN')}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Active Variant Technical Specs Summary */}
+                    {selectedVariant && (
+                      <div className="p-3 bg-white border border-[#87C0CD]/30 rounded-xl text-xs space-y-1.5 font-sans mt-2">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-1">
+                          <span className="text-slate-500 text-[11px]">Selected Part Code:</span>
+                          <span className="font-mono font-bold text-[#226597]">{selectedVariant.part_code || '-'}</span>
+                        </div>
+                        {selectedVariant.frame_size && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-[11px]">Frame Size:</span>
+                            <span className="font-semibold text-[#113F67]">{selectedVariant.frame_size}</span>
+                          </div>
+                        )}
+                        {selectedVariant.motor_type && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-[11px]">Motor / Power Spec:</span>
+                            <span className="font-semibold text-[#113F67]">{selectedVariant.motor_type}</span>
+                          </div>
+                        )}
+                        {selectedVariant.cable_dimension && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-[11px]">Cable Dimensions:</span>
+                            <span className="font-semibold text-[#113F67]">{selectedVariant.cable_dimension}</span>
+                          </div>
+                        )}
+                        {(selectedVariant.connector1_name || selectedVariant.connector2_name) && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-[11px]">Connectors:</span>
+                            <span className="font-semibold text-[#113F67]">
+                              {[selectedVariant.connector1_name, selectedVariant.connector2_name].filter(Boolean).join(' + ')}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Dynamic Price Display */}
+                {displayPrice !== null && (
+                  <div className="mt-3 flex items-baseline space-x-2.5">
                     <span className="text-3xl font-extrabold text-[#113F67] font-display">
-                      ₹{Number(product.price).toLocaleString('en-IN')}
+                      ₹{displayPrice.toLocaleString('en-IN')}
                     </span>
                     <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">/ Piece</span>
+                    {selectedVariant && (
+                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 uppercase tracking-wider">
+                        Variant Price
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

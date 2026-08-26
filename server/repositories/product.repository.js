@@ -24,11 +24,12 @@ export class ProductRepository extends BaseRepository {
     const product = rows[0];
     product.images = await this.getImages(id);
     product.documents = await this.getDocuments(id);
+    product.part_code_variants = await this.getPartCodeVariants(product.id);
     return product;
   }
 
   /**
-   * Find product by slug with images and documents
+   * Find product by slug with images, documents, and part code variants
    * @param {string} slug
    */
   async findDetailBySlug(slug) {
@@ -45,7 +46,54 @@ export class ProductRepository extends BaseRepository {
     const product = rows[0];
     product.images = await this.getImages(product.id);
     product.documents = await this.getDocuments(product.id);
+    product.part_code_variants = await this.getPartCodeVariants(product.id);
     return product;
+  }
+
+  /**
+   * Fetch Part Code Variant configurations for a product with calculated prices
+   * @param {number|string} productId
+   */
+  async getPartCodeVariants(productId) {
+    const sql = `
+      SELECT *
+      FROM product_cable_costs
+      WHERE product_id = ?
+      ORDER BY id ASC
+    `;
+    const rows = await query(sql, [productId]);
+    return rows.map((r) => {
+      let extra = [];
+      if (typeof r.additional_components === 'string') {
+        try {
+          extra = JSON.parse(r.additional_components);
+        } catch (err) {
+          extra = [];
+        }
+      } else if (Array.isArray(r.additional_components)) {
+        extra = r.additional_components;
+      }
+
+      const len = Number(r.default_length) || 0;
+      const cCost = Number(r.cable_cost_per_meter) || 0;
+      const c1 = Number(r.connector1_cost) || 0;
+      const c2 = Number(r.connector2_cost) || 0;
+      const labour = Number(r.labour_cost) || 0;
+      const battery = Number(r.battery_cost) || 0;
+      const extraCost = extra.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
+
+      const landingCost = len * cCost + c1 + c2 + labour + battery + extraCost;
+      const margin = Number(r.margin_percentage) || 0;
+      const profit = (margin / 100) * landingCost;
+      const sellingPrice = Math.round(landingCost + profit);
+
+      return {
+        ...r,
+        additional_components: extra,
+        landing_cost: Math.round(landingCost),
+        calculated_price: sellingPrice,
+      };
+    });
   }
 
   /**
