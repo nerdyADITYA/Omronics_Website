@@ -12,6 +12,8 @@ import {
   Sliders,
   Plus,
   Trash2,
+  FileCode,
+  Tag,
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -22,10 +24,15 @@ export function CableCalculator() {
   const [configurations, setConfigurations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [feedback, setFeedback] = useState(null);
 
-  // Live Adjustable Form State (Empty initial values, clear placeholders)
+  // Active Variant Selection State
+  const [activeVariantId, setActiveVariantId] = useState(null); // null means creating a NEW variant
+
+  // Live Adjustable Form State
   const [params, setParams] = useState({
+    id: null,
     product_id: '',
     frame_size: '',
     motor_type: '',
@@ -73,53 +80,79 @@ export function CableCalculator() {
     }
   };
 
+  // Saved Variants for the currently selected product
+  const productVariants = configurations.filter(
+    (c) => String(c.product_id) === String(selectedProductId)
+  );
+
   useEffect(() => {
     if (!selectedProductId) return;
-    const found = configurations.find((c) => String(c.product_id) === String(selectedProductId));
-    const selectedProd = servoProducts.find((p) => String(p.id) === String(selectedProductId));
+    const variants = configurations.filter(
+      (c) => String(c.product_id) === String(selectedProductId)
+    );
 
-    if (found) {
-      setParams({
-        product_id: String(found.product_id),
-        frame_size: found.frame_size || '',
-        motor_type: found.motor_type || '',
-        part_code: found.part_code || selectedProd?.model_number || '',
-        default_length: found.default_length !== undefined && found.default_length !== null ? Number(found.default_length) : 5,
-        cable_dimension: found.cable_dimension || '',
-        cable_cost_per_meter: found.cable_cost_per_meter !== undefined && found.cable_cost_per_meter !== null ? found.cable_cost_per_meter : '',
-        connector1_name: found.connector1_name || '',
-        connector1_cost: found.connector1_cost !== undefined && found.connector1_cost !== null ? found.connector1_cost : '',
-        connector2_name: found.connector2_name || '',
-        connector2_cost: found.connector2_cost !== undefined && found.connector2_cost !== null ? found.connector2_cost : '',
-        labour_cost: found.labour_cost !== undefined && found.labour_cost !== null ? found.labour_cost : '',
-        battery_name: found.battery_name || '',
-        battery_cost: found.battery_cost !== undefined && found.battery_cost !== null ? found.battery_cost : '',
-        margin_percentage: found.margin_percentage !== undefined && found.margin_percentage !== null ? Number(found.margin_percentage) : 35,
-        additional_components: Array.isArray(found.additional_components) ? found.additional_components : [],
-      });
+    if (variants.length > 0) {
+      // If we haven't selected a variant yet, or selected one not in this product, default to first variant
+      const currentExists = variants.find((v) => String(v.id) === String(activeVariantId));
+      if (currentExists) {
+        loadVariantIntoForm(currentExists);
+      } else {
+        loadVariantIntoForm(variants[0]);
+      }
     } else {
-      setParams({
-        product_id: String(selectedProductId),
-        frame_size: '',
-        motor_type: '',
-        part_code: selectedProd?.model_number || '',
-        default_length: 5,
-        cable_dimension: '',
-        cable_cost_per_meter: '',
-        connector1_name: '',
-        connector1_cost: '',
-        connector2_name: '',
-        connector2_cost: '',
-        labour_cost: '',
-        battery_name: '',
-        battery_cost: '',
-        margin_percentage: 35,
-        additional_components: [],
-      });
+      // Reset form to blank new variant for this product
+      resetToNewVariant(selectedProductId);
     }
-  }, [selectedProductId, configurations, servoProducts]);
+  }, [selectedProductId, configurations]);
 
-  // Live Dynamic Extra Component Handlers
+  const loadVariantIntoForm = (variant) => {
+    setActiveVariantId(variant.id);
+    setParams({
+      id: variant.id,
+      product_id: String(variant.product_id),
+      frame_size: variant.frame_size || '',
+      motor_type: variant.motor_type || '',
+      part_code: variant.part_code || '',
+      default_length: variant.default_length !== undefined && variant.default_length !== null ? Number(variant.default_length) : 5,
+      cable_dimension: variant.cable_dimension || '',
+      cable_cost_per_meter: variant.cable_cost_per_meter !== undefined && variant.cable_cost_per_meter !== null ? variant.cable_cost_per_meter : '',
+      connector1_name: variant.connector1_name || '',
+      connector1_cost: variant.connector1_cost !== undefined && variant.connector1_cost !== null ? variant.connector1_cost : '',
+      connector2_name: variant.connector2_name || '',
+      connector2_cost: variant.connector2_cost !== undefined && variant.connector2_cost !== null ? variant.connector2_cost : '',
+      labour_cost: variant.labour_cost !== undefined && variant.labour_cost !== null ? variant.labour_cost : '',
+      battery_name: variant.battery_name || '',
+      battery_cost: variant.battery_cost !== undefined && variant.battery_cost !== null ? variant.battery_cost : '',
+      margin_percentage: variant.margin_percentage !== undefined && variant.margin_percentage !== null ? Number(variant.margin_percentage) : 35,
+      additional_components: Array.isArray(variant.additional_components) ? variant.additional_components : [],
+    });
+  };
+
+  const resetToNewVariant = (productId = selectedProductId) => {
+    const selectedProd = servoProducts.find((p) => String(p.id) === String(productId));
+    setActiveVariantId(null);
+    setParams({
+      id: null,
+      product_id: String(productId),
+      frame_size: '',
+      motor_type: '',
+      part_code: selectedProd?.model_number || '',
+      default_length: 5,
+      cable_dimension: '',
+      cable_cost_per_meter: '',
+      connector1_name: '',
+      connector1_cost: '',
+      connector2_name: '',
+      connector2_cost: '',
+      labour_cost: '',
+      battery_name: '',
+      battery_cost: '',
+      margin_percentage: 35,
+      additional_components: [],
+    });
+  };
+
+  // Dynamic Extra Component Handlers
   const handleAddExtraComponent = () => {
     setParams((prev) => ({
       ...prev,
@@ -168,7 +201,7 @@ export function CableCalculator() {
   // C13 Selling Price = C12 + C10
   const sellingPrice = landingCost + profitMarginCost;
 
-  const handleSaveAllAndSync = async (e) => {
+  const handleSaveVariantAndSync = async (e) => {
     if (e) e.preventDefault();
     if (!selectedProductId) {
       alert('Please select a Servo Cable product.');
@@ -178,8 +211,12 @@ export function CableCalculator() {
     setFeedback(null);
     try {
       const finalPrice = Math.round(sellingPrice);
-      // 1. Save component configuration
-      const configRes = await api.post('/cable-costs', { ...params, product_id: selectedProductId });
+      // 1. Save component configuration (with id if editing, or null if creating new variant)
+      const configRes = await api.post('/cable-costs', {
+        ...params,
+        id: activeVariantId,
+        product_id: selectedProductId,
+      });
       // 2. Sync product price
       const priceRes = await api.post('/cable-costs/sync-price', {
         productId: selectedProductId,
@@ -189,14 +226,37 @@ export function CableCalculator() {
       if (configRes.success && priceRes.success) {
         setFeedback({
           type: 'success',
-          message: `Saved component setup and updated Selling Price to ₹${finalPrice.toLocaleString('en-IN')} on Product Catalog!`,
+          message: `Saved variant setup "${params.part_code || 'Part Code'}" and updated Product Catalog price to ₹${finalPrice.toLocaleString('en-IN')}!`,
         });
         await loadData();
+        if (configRes.data && configRes.data.id) {
+          setActiveVariantId(configRes.data.id);
+        }
       }
     } catch (err) {
       setFeedback({ type: 'error', message: err.message || 'Failed to save cable cost setup and sync price.' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteVariant = async (variantId) => {
+    const targetId = variantId || activeVariantId;
+    if (!targetId) return;
+    if (!window.confirm('Are you sure you want to delete this Part Code variant setup?')) return;
+    setDeleting(true);
+    setFeedback(null);
+    try {
+      const res = await api.delete(`/cable-costs/${targetId}`);
+      if (res.success) {
+        setFeedback({ type: 'success', message: 'Variant setup deleted successfully.' });
+        await loadData();
+        resetToNewVariant(selectedProductId);
+      }
+    } catch (err) {
+      setFeedback({ type: 'error', message: err.message || 'Failed to delete variant setup.' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -223,7 +283,7 @@ export function CableCalculator() {
             <h1 className="text-xl font-bold text-[#113F67] font-display">Servo Cable Cost & Price Calculator</h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Adjust component specs, connectors, extra hardware, length, and profit margins live to calculate landing costs and update selling prices.
+            Manage multiple Part Code variants per Servo product. Adjust component specs, connectors, extra hardware, length, and profit margins live.
           </p>
         </div>
 
@@ -245,7 +305,7 @@ export function CableCalculator() {
             }`}
           >
             <Settings2 className="w-4 h-4" />
-            <span>Setup Overview</span>
+            <span>Setup Overview ({configurations.length})</span>
           </button>
         </div>
       </div>
@@ -272,13 +332,13 @@ export function CableCalculator() {
       {/* Main Content Viewport */}
       {activeTab === 'calculator' ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Live Adjustable Parameters Panel */}
+          {/* Left Column: Product Selector, Variant Bar & Live Parameters */}
           <div className="lg:col-span-6 space-y-6">
-            {/* Product Selector Box */}
+            {/* Product & Variant Selector Box */}
             <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-5 space-y-4 shadow-sm">
               <div className="flex items-center space-x-2 border-b border-[#87C0CD]/20 pb-3">
                 <Layers className="w-4 h-4 text-[#226597]" />
-                <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#113F67]">1. Target Servo Product</h2>
+                <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#113F67]">1. Target Servo Product & Part Code Variant</h2>
               </div>
               <div>
                 <label className="block text-xs font-bold text-[#113F67] mb-1.5">Select Servo Cable Product *</label>
@@ -295,6 +355,65 @@ export function CableCalculator() {
                 </select>
               </div>
 
+              {/* Part Code Variant Selector Bar */}
+              <div className="pt-2 border-t border-[#87C0CD]/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#113F67] flex items-center space-x-1">
+                    <FileCode className="w-3.5 h-3.5 text-[#226597]" />
+                    <span>Saved Part Code Variants ({productVariants.length})</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => resetToNewVariant(selectedProductId)}
+                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Add New Part Code Variant</span>
+                  </button>
+                </div>
+
+                {productVariants.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {productVariants.map((v) => {
+                      const isSelected = String(v.id) === String(activeVariantId);
+                      return (
+                        <div key={v.id} className="flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => loadVariantIntoForm(v)}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-l-xl border border-r-0 transition flex items-center space-x-1.5 ${
+                              isSelected
+                                ? 'bg-[#226597] text-white border-[#226597] shadow-sm'
+                                : 'bg-[#F3F9FB] text-[#113F67] border-[#87C0CD]/40 hover:bg-[#E4F1F5]'
+                            }`}
+                          >
+                            <Tag className="w-3 h-3 opacity-75" />
+                            <span>{v.part_code || 'Unnamed Part Code'}</span>
+                            {v.motor_type && <span className="opacity-75 text-[10px]">({v.motor_type})</span>}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteVariant(v.id)}
+                            className={`px-2 py-1.5 text-xs font-bold rounded-r-xl border border-l-0 transition ${
+                              isSelected
+                                ? 'bg-[#113F67] text-rose-300 hover:text-white border-[#226597]'
+                                : 'bg-[#F3F9FB] text-slate-400 hover:text-rose-600 border-[#87C0CD]/40 hover:bg-rose-50'
+                            }`}
+                            title="Delete this variant"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 font-medium">
+                    No saved variants yet for this product. Enter your specs below and click <strong>Save Variant Setup</strong> to create one!
+                  </div>
+                )}
+              </div>
+
               {currentProduct && (
                 <div className="p-3 bg-[#F3F9FB] border border-[#87C0CD]/30 rounded-xl flex items-center justify-between text-xs">
                   <span className="text-slate-500 font-medium">Saved Product Catalog Price:</span>
@@ -307,9 +426,16 @@ export function CableCalculator() {
 
             {/* Live Component Parameters Panel */}
             <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-5 space-y-5 shadow-sm">
-              <div className="flex items-center space-x-2 border-b border-[#87C0CD]/20 pb-3">
-                <Sliders className="w-4 h-4 text-[#226597]" />
-                <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#113F67]">2. Live Adjustable Parameters</h2>
+              <div className="flex items-center justify-between border-b border-[#87C0CD]/20 pb-3">
+                <div className="flex items-center space-x-2">
+                  <Sliders className="w-4 h-4 text-[#226597]" />
+                  <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#113F67]">
+                    2. Live Adjustable Parameters
+                  </h2>
+                </div>
+                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800">
+                  {activeVariantId ? `Editing Variant #${activeVariantId}` : 'Creating New Variant'}
+                </span>
               </div>
 
               {/* Header Specifications */}
@@ -337,10 +463,10 @@ export function CableCalculator() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-bold text-[#113F67] mb-1">Part Code</label>
+                    <label className="block text-[11px] font-bold text-[#113F67] mb-1">Part Code *</label>
                     <input
                       type="text"
-                      placeholder="e.g. S6-L-P014-xx.x"
+                      placeholder="e.g. S6-L-P014-xx.x or S6-L-P020-xx.x"
                       value={params.part_code}
                       onChange={(e) => setParams({ ...params, part_code: e.target.value })}
                       className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-mono font-bold text-[#226597] placeholder:text-slate-400"
@@ -709,7 +835,7 @@ export function CableCalculator() {
 
               {/* Single-Click Atomic Save & Sync Button */}
               <button
-                onClick={handleSaveAllAndSync}
+                onClick={handleSaveVariantAndSync}
                 disabled={saving || !selectedProductId}
                 className="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 transform hover:-translate-y-0.5 cursor-pointer"
               >
@@ -718,7 +844,7 @@ export function CableCalculator() {
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    <span>Save Setup & Sync Selling Price (₹{Math.round(sellingPrice).toLocaleString('en-IN')}) to Product</span>
+                    <span>Save Variant Setup & Sync Selling Price (₹{Math.round(sellingPrice).toLocaleString('en-IN')})</span>
                     <ArrowRight className="w-4 h-4 ml-1" />
                   </>
                 )}
@@ -727,13 +853,15 @@ export function CableCalculator() {
           </div>
         </div>
       ) : (
-        /* Tab 2: Configurations Overview Table */
+        /* Tab 2: Complete Unfiltered Setup Overview Table */
         <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-6 space-y-6 shadow-sm">
           <div className="flex items-center justify-between border-b border-[#87C0CD]/30 pb-4">
             <div>
-              <h2 className="text-base font-extrabold text-[#113F67] font-display">Saved Component Setup Configurations</h2>
+              <h2 className="text-base font-extrabold text-[#113F67] font-display">
+                All Saved Part Code Variant Configurations ({configurations.length})
+              </h2>
               <p className="text-xs text-slate-500">
-                Overview of configured Servo Cable products with component specifications, connector costs, and default margins.
+                Complete overview of all configured Part Codes across all Servo Cable products.
               </p>
             </div>
           </div>
@@ -744,26 +872,35 @@ export function CableCalculator() {
                 <tr>
                   <th className="px-4 py-3">Product Name</th>
                   <th className="px-4 py-3">Part Code</th>
+                  <th className="px-4 py-3">Header / Motor Spec</th>
                   <th className="px-4 py-3">Cable Spec & Cost</th>
                   <th className="px-4 py-3">Connectors & Extra Items</th>
                   <th className="px-4 py-3">Labour</th>
                   <th className="px-4 py-3">Margin %</th>
                   <th className="px-4 py-3">Catalog Price</th>
-                  <th className="px-4 py-3 text-right">Action</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#87C0CD]/20">
                 {configurations.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="px-4 py-8 text-center text-slate-500">
-                      No configurations saved yet. Select a product on the calculator tab to configure!
+                    <td colSpan="9" className="px-4 py-8 text-center text-slate-500">
+                      No Part Code variant configurations saved yet. Select a product on the calculator tab to configure!
                     </td>
                   </tr>
                 ) : (
                   configurations.map((c) => (
                     <tr key={c.id} className="hover:bg-[#F3F9FB]/60 transition">
                       <td className="px-4 py-3.5 font-bold text-[#113F67]">{c.product_name}</td>
-                      <td className="px-4 py-3.5 font-mono text-[#226597] font-bold">{c.part_code || '-'}</td>
+                      <td className="px-4 py-3.5 font-mono text-[#226597] font-bold">
+                        <span className="px-2 py-0.5 bg-[#E4F1F5] rounded border border-[#87C0CD]/40">
+                          {c.part_code || 'Unnamed Part Code'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 space-y-0.5">
+                        {c.frame_size && <span className="block text-[10px] text-slate-500 font-semibold">{c.frame_size}</span>}
+                        {c.motor_type && <span className="block text-[11px] font-bold text-[#113F67]">{c.motor_type}</span>}
+                      </td>
                       <td className="px-4 py-3.5">
                         <span className="font-semibold">{c.cable_dimension || '-'}</span>
                         <span className="block text-[10px] text-slate-500 font-mono">
@@ -785,15 +922,23 @@ export function CableCalculator() {
                       <td className="px-4 py-3.5 font-bold font-mono text-[#113F67]">
                         {c.current_product_price ? `₹${Number(c.current_product_price).toLocaleString('en-IN')}` : '-'}
                       </td>
-                      <td className="px-4 py-3.5 text-right">
+                      <td className="px-4 py-3.5 text-right space-x-1.5">
                         <button
                           onClick={() => {
                             setSelectedProductId(String(c.product_id));
+                            loadVariantIntoForm(c);
                             setActiveTab('calculator');
                           }}
                           className="px-3 py-1 bg-[#226597] hover:bg-[#113F67] text-white font-bold text-[11px] rounded-lg transition cursor-pointer"
                         >
                           Load in Calculator
+                        </button>
+                        <button
+                          onClick={() => handleDeleteVariant(c.id)}
+                          className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition cursor-pointer"
+                          title="Delete variant"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </td>
                     </tr>

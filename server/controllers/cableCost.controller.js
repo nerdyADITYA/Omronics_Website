@@ -38,6 +38,16 @@ export async function saveConfiguration(req, res) {
   }
 }
 
+export async function deleteConfiguration(req, res) {
+  try {
+    const { id } = req.params;
+    const result = await cableCostService.deleteConfiguration(id);
+    return sendSuccess(res, result, 'Cable cost configuration deleted successfully.');
+  } catch (err) {
+    return sendError(res, err.message || 'Failed to delete cable cost configuration.', err.statusCode || 500);
+  }
+}
+
 export async function syncSellingPrice(req, res) {
   try {
     const { productId, sellingPrice } = req.body;

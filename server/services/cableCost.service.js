@@ -38,6 +38,13 @@ export class CableCostService {
     return cableCostRepository.upsert(data);
   }
 
+  async deleteConfiguration(id) {
+    if (!id) {
+      throw new AppError('Configuration ID is required for deletion.', 400);
+    }
+    return cableCostRepository.delete(id);
+  }
+
   async syncSellingPrice(productId, sellingPrice) {
     if (!productId) {
       throw new AppError('Product ID is required.', 400);

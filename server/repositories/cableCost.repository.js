@@ -23,7 +23,7 @@ export class CableCostRepository {
       JOIN products p ON pcc.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.deleted_at IS NULL
-      ORDER BY pcc.updated_at DESC
+      ORDER BY p.product_name ASC, pcc.updated_at DESC
     `;
     const rows = await query(sql);
     return rows.map((r) => this.formatRow(r));
@@ -35,65 +35,115 @@ export class CableCostRepository {
       FROM product_cable_costs pcc
       JOIN products p ON pcc.product_id = p.id
       WHERE pcc.product_id = ? AND p.deleted_at IS NULL
-      LIMIT 1
+      ORDER BY pcc.updated_at DESC
     `;
     const rows = await query(sql, [productId]);
+    return rows.map((r) => this.formatRow(r));
+  }
+
+  async findById(id) {
+    const sql = `
+      SELECT pcc.*, p.product_name, p.model_number, p.slug as product_slug, p.price as current_product_price
+      FROM product_cable_costs pcc
+      JOIN products p ON pcc.product_id = p.id
+      WHERE pcc.id = ? AND p.deleted_at IS NULL
+      LIMIT 1
+    `;
+    const rows = await query(sql, [id]);
     return this.formatRow(rows[0] || null);
   }
 
   async upsert(data) {
-    const sql = `
-      INSERT INTO product_cable_costs (
-        product_id, frame_size, motor_type, part_code, default_length,
-        cable_dimension, cable_cost_per_meter, connector1_name, connector1_cost,
-        connector2_name, connector2_cost, labour_cost, battery_name, battery_cost,
-        margin_percentage, additional_components
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-        frame_size = VALUES(frame_size),
-        motor_type = VALUES(motor_type),
-        part_code = VALUES(part_code),
-        default_length = VALUES(default_length),
-        cable_dimension = VALUES(cable_dimension),
-        cable_cost_per_meter = VALUES(cable_cost_per_meter),
-        connector1_name = VALUES(connector1_name),
-        connector1_cost = VALUES(connector1_cost),
-        connector2_name = VALUES(connector2_name),
-        connector2_cost = VALUES(connector2_cost),
-        labour_cost = VALUES(labour_cost),
-        battery_name = VALUES(battery_name),
-        battery_cost = VALUES(battery_cost),
-        margin_percentage = VALUES(margin_percentage),
-        additional_components = VALUES(additional_components)
-    `;
-
     const additionalJson = Array.isArray(data.additional_components)
       ? JSON.stringify(data.additional_components)
       : typeof data.additional_components === 'string'
       ? data.additional_components
       : null;
 
-    const params = [
-      data.product_id,
-      data.frame_size || null,
-      data.motor_type || null,
-      data.part_code || null,
-      data.default_length !== undefined && data.default_length !== null ? Number(data.default_length) : 5,
-      data.cable_dimension || null,
-      data.cable_cost_per_meter !== undefined && data.cable_cost_per_meter !== null ? Number(data.cable_cost_per_meter) : 0,
-      data.connector1_name || null,
-      data.connector1_cost !== undefined && data.connector1_cost !== null ? Number(data.connector1_cost) : 0,
-      data.connector2_name || null,
-      data.connector2_cost !== undefined && data.connector2_cost !== null ? Number(data.connector2_cost) : 0,
-      data.labour_cost !== undefined && data.labour_cost !== null ? Number(data.labour_cost) : 0,
-      data.battery_name || null,
-      data.battery_cost !== undefined && data.battery_cost !== null ? Number(data.battery_cost) : 0,
-      data.margin_percentage !== undefined && data.margin_percentage !== null ? Number(data.margin_percentage) : 35,
-      additionalJson,
-    ];
+    if (data.id) {
+      // Update existing variant record by primary key id
+      const updateSql = `
+        UPDATE product_cable_costs SET
+          frame_size = ?,
+          motor_type = ?,
+          part_code = ?,
+          default_length = ?,
+          cable_dimension = ?,
+          cable_cost_per_meter = ?,
+          connector1_name = ?,
+          connector1_cost = ?,
+          connector2_name = ?,
+          connector2_cost = ?,
+          labour_cost = ?,
+          battery_name = ?,
+          battery_cost = ?,
+          margin_percentage = ?,
+          additional_components = ?
+        WHERE id = ? AND product_id = ?
+      `;
 
-    await query(sql, params);
-    return this.findByProductId(data.product_id);
+      const updateParams = [
+        data.frame_size || null,
+        data.motor_type || null,
+        data.part_code || null,
+        data.default_length !== undefined && data.default_length !== null ? Number(data.default_length) : 5,
+        data.cable_dimension || null,
+        data.cable_cost_per_meter !== undefined && data.cable_cost_per_meter !== null ? Number(data.cable_cost_per_meter) : 0,
+        data.connector1_name || null,
+        data.connector1_cost !== undefined && data.connector1_cost !== null ? Number(data.connector1_cost) : 0,
+        data.connector2_name || null,
+        data.connector2_cost !== undefined && data.connector2_cost !== null ? Number(data.connector2_cost) : 0,
+        data.labour_cost !== undefined && data.labour_cost !== null ? Number(data.labour_cost) : 0,
+        data.battery_name || null,
+        data.battery_cost !== undefined && data.battery_cost !== null ? Number(data.battery_cost) : 0,
+        data.margin_percentage !== undefined && data.margin_percentage !== null ? Number(data.margin_percentage) : 35,
+        additionalJson,
+        data.id,
+        data.product_id,
+      ];
+
+      await query(updateSql, updateParams);
+      return this.findById(data.id);
+    } else {
+      // Insert new variant record for product_id
+      const insertSql = `
+        INSERT INTO product_cable_costs (
+          product_id, frame_size, motor_type, part_code, default_length,
+          cable_dimension, cable_cost_per_meter, connector1_name, connector1_cost,
+          connector2_name, connector2_cost, labour_cost, battery_name, battery_cost,
+          margin_percentage, additional_components
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+
+      const insertParams = [
+        data.product_id,
+        data.frame_size || null,
+        data.motor_type || null,
+        data.part_code || null,
+        data.default_length !== undefined && data.default_length !== null ? Number(data.default_length) : 5,
+        data.cable_dimension || null,
+        data.cable_cost_per_meter !== undefined && data.cable_cost_per_meter !== null ? Number(data.cable_cost_per_meter) : 0,
+        data.connector1_name || null,
+        data.connector1_cost !== undefined && data.connector1_cost !== null ? Number(data.connector1_cost) : 0,
+        data.connector2_name || null,
+        data.connector2_cost !== undefined && data.connector2_cost !== null ? Number(data.connector2_cost) : 0,
+        data.labour_cost !== undefined && data.labour_cost !== null ? Number(data.labour_cost) : 0,
+        data.battery_name || null,
+        data.battery_cost !== undefined && data.battery_cost !== null ? Number(data.battery_cost) : 0,
+        data.margin_percentage !== undefined && data.margin_percentage !== null ? Number(data.margin_percentage) : 35,
+        additionalJson,
+      ];
+
+      const res = await query(insertSql, insertParams);
+      const insertedId = res.insertId;
+      return this.findById(insertedId);
+    }
+  }
+
+  async delete(id) {
+    const sql = `DELETE FROM product_cable_costs WHERE id = ?`;
+    await query(sql, [id]);
+    return { success: true, deleted_id: id };
   }
 
   async syncProductPrice(productId, calculatedSellingPrice) {
