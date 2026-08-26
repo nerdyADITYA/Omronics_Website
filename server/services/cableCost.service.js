@@ -1,6 +1,6 @@
 import { cableCostRepository } from '../repositories/cableCost.repository.js';
 import { query } from '../config/database.js';
-import { AppError } from '../utils/AppError.js';
+import { AppError } from '../middlewares/error.middleware.js';
 
 export class CableCostService {
   /**
