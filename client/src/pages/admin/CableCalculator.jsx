@@ -23,6 +23,8 @@ import {
   AlertTriangle,
   HelpCircle,
   Info,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../../services/api';
@@ -40,6 +42,10 @@ export function CableCalculator() {
   const [filterProductName, setFilterProductName] = useState('ALL');
   const [filterPartCode, setFilterPartCode] = useState('ALL');
 
+  // Datatable Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   // Excel Import & Safety Confirmation Modal State
   const [importingFile, setImportingFile] = useState(false);
   const [executingImport, setExecutingImport] = useState(false);
@@ -47,6 +53,11 @@ export function CableCalculator() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showImportGuide, setShowImportGuide] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Reset to Page 1 when filters or itemsPerPage change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterProductName, filterPartCode, itemsPerPage]);
 
   // Derive unique product names for filter dropdown
   const uniqueProductNames = Array.from(
@@ -69,6 +80,13 @@ export function CableCalculator() {
     const matchPartCode = filterPartCode === 'ALL' || c.part_code === filterPartCode;
     return matchProduct && matchPartCode;
   });
+
+  // Calculate Paginated Dataset
+  const totalItems = filteredConfigurations.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+  const paginatedConfigurations = filteredConfigurations.slice(startIndex, endIndex);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1041,7 +1059,7 @@ export function CableCalculator() {
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 border-b border-[#87C0CD]/30 pb-4">
             <div>
               <h2 className="text-base font-extrabold text-[#113F67] font-display">
-                Part Code Variant Configurations ({filteredConfigurations.length} of {configurations.length})
+                Part Code Variant Configurations
               </h2>
             </div>
 
@@ -1239,7 +1257,7 @@ export function CableCalculator() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#87C0CD]/20">
-                {filteredConfigurations.length === 0 ? (
+                {paginatedConfigurations.length === 0 ? (
                   <tr>
                     <td colSpan="9" className="px-4 py-8 text-center text-slate-500">
                       {configurations.length === 0
@@ -1248,7 +1266,7 @@ export function CableCalculator() {
                     </td>
                   </tr>
                 ) : (
-                  filteredConfigurations.map((c) => {
+                  paginatedConfigurations.map((c) => {
                     const len = Number(c.default_length) || 0;
                     const cCost = Number(c.cable_cost_per_meter) || 0;
                     const c1 = Number(c.connector1_cost) || 0;
@@ -1325,6 +1343,79 @@ export function CableCalculator() {
               </tbody>
             </table>
           </div>
+
+          {/* Datatable Pagination Footer */}
+          {totalItems > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 border-t border-[#87C0CD]/30 dark:border-[#233554] text-xs">
+              {/* Entry Counter Summary */}
+              <div className="text-slate-500 dark:text-slate-400 font-medium">
+                Showing <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">{startIndex + 1}</span> to{' '}
+                <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">{endIndex}</span> of{' '}
+                <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">{totalItems}</span> entries
+                {totalItems < configurations.length && (
+                  <span className="text-slate-400 dark:text-slate-500 ml-1">
+                    (Filtered from {configurations.length} total)
+                  </span>
+                )}
+              </div>
+
+              {/* Page Controls & Rows Per Page Selector */}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Items Per Page Dropdown */}
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-slate-500 dark:text-slate-400 font-medium text-[11px]">Rows per page:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    className="px-2.5 py-1 bg-[#F3F9FB] dark:bg-[#0b1329] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-[#f8fafc] focus:outline-none focus:border-[#226597]"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+
+                {/* Page Navigation Buttons */}
+                <div className="flex items-center space-x-1">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="p-1.5 rounded-lg border border-[#87C0CD]/40 dark:border-[#233554] bg-white dark:bg-[#0f1b36] text-[#113F67] dark:text-[#f8fafc] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F3F9FB] dark:hover:bg-[#1a2947] transition cursor-pointer"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                    <button
+                      key={pageNum}
+                      type="button"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-3 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                        currentPage === pageNum
+                          ? 'bg-[#226597] text-white shadow-xs'
+                          : 'bg-white dark:bg-[#0f1b36] text-[#113F67] dark:text-[#f8fafc] border border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#F3F9FB] dark:hover:bg-[#1a2947]'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-1.5 rounded-lg border border-[#87C0CD]/40 dark:border-[#233554] bg-white dark:bg-[#0f1b36] text-[#113F67] dark:text-[#f8fafc] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F3F9FB] dark:hover:bg-[#1a2947] transition cursor-pointer"
+                    title="Next Page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
