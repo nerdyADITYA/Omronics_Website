@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider } from './context/AuthContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { AppRoutes } from './routes/AppRoutes';
@@ -22,6 +24,8 @@ export default function App() {
           <Router>
             <AppRoutes />
           </Router>
+          <Analytics />
+          <SpeedInsights />
         </SettingsProvider>
       </AuthProvider>
     </QueryClientProvider>
