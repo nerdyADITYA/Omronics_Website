@@ -13,6 +13,26 @@ export class CableCostRepository {
     if (!Array.isArray(row.additional_components)) {
       row.additional_components = [];
     }
+
+    let urls = [];
+    if (typeof row.image_url === 'string') {
+      const trimmed = row.image_url.trim();
+      if (trimmed.startsWith('[')) {
+        try {
+          urls = JSON.parse(trimmed);
+          if (!Array.isArray(urls)) urls = [trimmed];
+        } catch (e) {
+          urls = [trimmed];
+        }
+      } else if (trimmed.length > 0) {
+        urls = [trimmed];
+      }
+    } else if (Array.isArray(row.image_url)) {
+      urls = row.image_url;
+    }
+
+    row.image_urls = urls.filter(Boolean);
+    row.primary_image = row.image_urls[0] || null;
     return row;
   }
 
@@ -63,6 +83,24 @@ export class CableCostRepository {
     const sellingPrice = data.selling_price !== undefined && data.selling_price !== null ? Number(data.selling_price) : 0;
     const landingCost = data.landing_cost !== undefined && data.landing_cost !== null ? Number(data.landing_cost) : 0;
 
+    let imageUrlsArr = [];
+    if (Array.isArray(data.image_urls)) {
+      imageUrlsArr = data.image_urls.filter((u) => typeof u === 'string' && u.trim().length > 0);
+    } else if (data.image_url) {
+      const trimmed = String(data.image_url).trim();
+      if (trimmed.startsWith('[')) {
+        try {
+          imageUrlsArr = JSON.parse(trimmed);
+        } catch (e) {
+          imageUrlsArr = [trimmed];
+        }
+      } else if (trimmed.length > 0) {
+        imageUrlsArr = [trimmed];
+      }
+    }
+
+    const imageUrl = imageUrlsArr.length > 0 ? JSON.stringify(imageUrlsArr) : null;
+
     if (data.id) {
       // Update existing variant record by primary key id
       const updateSql = `
@@ -83,7 +121,8 @@ export class CableCostRepository {
           margin_percentage = ?,
           additional_components = ?,
           selling_price = ?,
-          landing_cost = ?
+          landing_cost = ?,
+          image_url = ?
         WHERE id = ? AND product_id = ?
       `;
 
@@ -105,6 +144,7 @@ export class CableCostRepository {
         additionalJson,
         sellingPrice,
         landingCost,
+        imageUrl,
         data.id,
         data.product_id,
       ];
@@ -118,8 +158,8 @@ export class CableCostRepository {
           product_id, frame_size, motor_type, part_code, default_length,
           cable_dimension, cable_cost_per_meter, connector1_name, connector1_cost,
           connector2_name, connector2_cost, labour_cost, battery_name, battery_cost,
-          margin_percentage, additional_components, selling_price, landing_cost
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          margin_percentage, additional_components, selling_price, landing_cost, image_url
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const insertParams = [
@@ -141,6 +181,7 @@ export class CableCostRepository {
         additionalJson,
         sellingPrice,
         landingCost,
+        imageUrl,
       ];
 
       const res = await query(insertSql, insertParams);

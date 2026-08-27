@@ -1,8 +1,15 @@
 import React, { useState } from 'react';
-import { X, Send, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Send, CheckCircle2, AlertCircle, Tag, Cpu } from 'lucide-react';
 import api from '../../services/api';
 
-export function LeadModal({ isOpen, onClose, sourceType = 'CONTACT', referenceId = null, title = 'Request a Quote' }) {
+export function LeadModal({
+  isOpen,
+  onClose,
+  sourceType = 'CONTACT',
+  referenceId = null,
+  title = 'Request a Quote',
+  variantDetails = null,
+}) {
   const [formData, setFormData] = useState({
     customer_name: '',
     company_name: '',
@@ -27,6 +34,7 @@ export function LeadModal({ isOpen, onClose, sourceType = 'CONTACT', referenceId
         ...formData,
         source_type: sourceType,
         reference_id: referenceId,
+        variant_details: variantDetails || null,
       });
 
       if (res.success) {
@@ -44,7 +52,7 @@ export function LeadModal({ isOpen, onClose, sourceType = 'CONTACT', referenceId
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#113F67]/60 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#113F67]/60 backdrop-blur-md animate-in fade-in duration-200 font-sans">
       <div className="relative w-full max-w-lg bg-white border border-[#87C0CD]/40 rounded-3xl shadow-2xl p-6 md:p-8 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -59,6 +67,31 @@ export function LeadModal({ isOpen, onClose, sourceType = 'CONTACT', referenceId
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Selected Variant Specification Preview Badge */}
+        {variantDetails && (
+          <div className="mt-3 p-3.5 bg-sky-50/90 border border-sky-200 rounded-2xl text-xs space-y-1.5 font-sans">
+            <div className="flex justify-between items-center border-b border-sky-200/70 pb-1.5">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#226597] flex items-center space-x-1">
+                <Tag className="w-3 h-3" />
+                <span>Selected Cable Spec Variant</span>
+              </span>
+              <span className="font-mono font-extrabold text-[#226597] bg-white px-2 py-0.5 rounded-md border border-sky-200">
+                {variantDetails.part_code || 'Custom Variant'}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center justify-between text-[11px] pt-0.5">
+              <span className="font-bold text-[#113F67]">
+                {variantDetails.product_name} {variantDetails.motor_type ? `(${variantDetails.motor_type})` : ''}
+              </span>
+              {variantDetails.variant_price && (
+                <span className="font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  ₹{Number(variantDetails.variant_price).toLocaleString('en-IN')} / Piece
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {success ? (
           <div className="py-12 text-center space-y-3">

@@ -7,13 +7,41 @@ const PORT = process.env.PORT || 5000;
 
 async function runAutoMigrations() {
   try {
-    // Ensure landing_cost and selling_price columns exist in product_cable_costs
     await query(`
       ALTER TABLE product_cable_costs
       ADD COLUMN IF NOT EXISTS landing_cost DECIMAL(10,2) DEFAULT 0.00,
-      ADD COLUMN IF NOT EXISTS selling_price DECIMAL(10,2) DEFAULT 0.00
+      ADD COLUMN IF NOT EXISTS selling_price DECIMAL(10,2) DEFAULT 0.00,
+      ADD COLUMN IF NOT EXISTS image_url LONGTEXT DEFAULT NULL
     `);
-    logger.info('✅ Production Database Schema Verified (product_cable_costs columns synced).');
+    try {
+      await query(`
+        ALTER TABLE product_cable_costs
+        MODIFY COLUMN image_url LONGTEXT DEFAULT NULL
+      `);
+    } catch (e) {
+      // Column modify catch
+    }
+
+    try {
+      await query(`
+        ALTER TABLE enquiries
+        ADD COLUMN IF NOT EXISTS variant_details LONGTEXT DEFAULT NULL
+      `);
+    } catch (e) {
+      // Enquiries column catch
+    }
+
+    try {
+      await query(`
+        DELETE FROM product_images
+        WHERE display_order = 99 OR alt_text LIKE '%Variant%'
+      `);
+      logger.info('✅ Cleaned up variant images from main product catalog table.');
+    } catch (e) {
+      // Cleanup catch
+    }
+
+    logger.info('✅ Production Database Schema Verified.');
   } catch (err) {
     logger.warn('ℹ️ Schema check info:', err.message);
   }

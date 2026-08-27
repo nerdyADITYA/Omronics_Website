@@ -25,6 +25,7 @@ import {
   Info,
   ChevronLeft,
   ChevronRight,
+  Image as ImageIcon,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../../services/api';
@@ -53,6 +54,7 @@ export function CableCalculator() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showImportGuide, setShowImportGuide] = useState(false);
   const fileInputRef = useRef(null);
+  const variantImageInputRef = useRef(null);
 
   // Reset to Page 1 when filters or itemsPerPage change
   useEffect(() => {
@@ -112,6 +114,7 @@ export function CableCalculator() {
     battery_cost: '',
     margin_percentage: 35,
     additional_components: [],
+    image_urls: [],
   });
 
   useEffect(() => {
@@ -168,11 +171,28 @@ export function CableCalculator() {
       battery_cost: '',
       margin_percentage: 35,
       additional_components: [],
+      image_urls: [],
     });
   };
 
   const loadVariantIntoForm = (variant) => {
     setActiveVariantId(variant.id);
+    let urls = [];
+    if (Array.isArray(variant.image_urls) && variant.image_urls.length > 0) {
+      urls = variant.image_urls;
+    } else if (variant.image_url) {
+      const trimmed = String(variant.image_url).trim();
+      if (trimmed.startsWith('[')) {
+        try {
+          urls = JSON.parse(trimmed);
+        } catch (e) {
+          urls = [trimmed];
+        }
+      } else if (trimmed.length > 0) {
+        urls = [trimmed];
+      }
+    }
+
     setParams({
       id: variant.id,
       product_id: variant.product_id,
@@ -191,6 +211,7 @@ export function CableCalculator() {
       battery_cost: variant.battery_cost || '',
       margin_percentage: Number(variant.margin_percentage) || 35,
       additional_components: Array.isArray(variant.additional_components) ? variant.additional_components : [],
+      image_urls: urls,
     });
   };
 
@@ -232,7 +253,50 @@ export function CableCalculator() {
     setParams({ ...params, additional_components: updated });
   };
 
-  // Single-Click Atomic Save & Sync
+  // Multiple Image File & Clipboard Paste Handler
+  const appendImageFile = (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setParams((prev) => ({
+        ...prev,
+        image_urls: [...(prev.image_urls || []), e.target.result],
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleVariantImagePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            appendImageFile(file);
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+    }
+    const pastedText = e.clipboardData?.getData('text');
+    if (pastedText && (pastedText.startsWith('http') || pastedText.startsWith('data:image'))) {
+      setParams((prev) => ({
+        ...prev,
+        image_urls: [...(prev.image_urls || []), pastedText.trim()],
+      }));
+    }
+  };
+
+  const handleRemoveVariantImage = (indexToRemove) => {
+    setParams((prev) => ({
+      ...prev,
+      image_urls: (prev.image_urls || []).filter((_, idx) => idx !== indexToRemove),
+    }));
+  };
+
+  // Single-Click Save Handler (Keeps Default Catalog Price Independent!)
   const handleSaveVariantAndSync = async () => {
     if (!selectedProductId) {
       setFeedback({ type: 'error', message: 'Please select a Servo Cable product.' });
@@ -252,20 +316,17 @@ export function CableCalculator() {
       product_id: Number(selectedProductId),
       landing_cost: Math.round(landingCost),
       selling_price: Math.round(sellingPrice),
+      image_urls: params.image_urls || [],
     };
 
     try {
       const saveRes = await api.post('/cable-costs', payload);
       if (saveRes.success) {
         const savedPrice = Math.round(sellingPrice);
-        await api.post('/cable-costs/sync-price', {
-          productId: selectedProductId,
-          sellingPrice: savedPrice,
-        });
 
         setFeedback({
           type: 'success',
-          message: `Saved Part Code setup "${params.part_code}" & synced Selling Price ₹${savedPrice.toLocaleString('en-IN')} to product catalog!`,
+          message: `Saved Part Code setup "${params.part_code}" with Variant Selling Price ₹${savedPrice.toLocaleString('en-IN')}!`,
         });
 
         await loadData();
@@ -274,7 +335,7 @@ export function CableCalculator() {
         }
       }
     } catch (err) {
-      setFeedback({ type: 'error', message: err.message || 'Failed to save cable cost setup and sync price.' });
+      setFeedback({ type: 'error', message: err.message || 'Failed to save cable cost setup.' });
     } finally {
       setSaving(false);
     }
@@ -490,6 +551,21 @@ export function CableCalculator() {
         className="hidden"
       />
 
+      {/* Hidden File Input for Multiple Variant Images Upload */}
+      <input
+        ref={variantImageInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={(e) => {
+          if (e.target.files) {
+            Array.from(e.target.files).forEach(appendImageFile);
+            e.target.value = '';
+          }
+        }}
+        className="hidden"
+      />
+
       {/* Header Bar */}
       <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -633,7 +709,7 @@ export function CableCalculator() {
 
               {currentProduct && (
                 <div className="p-3 bg-[#F3F9FB] dark:bg-[#0f1b36] border border-[#87C0CD]/30 dark:border-[#233554] rounded-xl flex items-center justify-between text-xs">
-                  <span className="text-slate-500 font-medium">Saved Product Catalog Price:</span>
+                  <span className="text-slate-500 font-medium">Saved Default Catalog Price:</span>
                   <span className="font-extrabold text-[#113F67]">
                     {currentProduct.current_price ? `₹${Number(currentProduct.current_price).toLocaleString('en-IN')}` : 'Not set'}
                   </span>
@@ -653,6 +729,75 @@ export function CableCalculator() {
                 <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 dark:text-sky-300 text-sky-800">
                   {activeVariantId ? `Editing Variant #${activeVariantId}` : 'Creating New Variant'}
                 </span>
+              </div>
+
+              {/* Variant Cable Multiple Images Input & Clipboard Paste Area */}
+              <div className="space-y-3 bg-[#F3F9FB]/60 dark:bg-[#0f1b36] p-4 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#226597] flex items-center space-x-1.5">
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>Variant Cable Images ({params.image_urls ? params.image_urls.length : 0})</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400">Ctrl+V anywhere to paste images</span>
+                </div>
+
+                {/* Upload & Paste Dropzone */}
+                <div
+                  onPaste={handleVariantImagePaste}
+                  tabIndex={0}
+                  className="relative group border-2 border-dashed border-[#87C0CD]/50 hover:border-[#226597] dark:border-[#233554] rounded-xl p-4 bg-white dark:bg-[#152238] transition flex flex-col items-center justify-center text-center cursor-pointer focus:outline-none focus:border-[#226597]"
+                >
+                  <div
+                    onClick={() => variantImageInputRef.current?.click()}
+                    className="w-full flex flex-col items-center space-y-1.5 py-2"
+                  >
+                    <UploadCloud className="w-7 h-7 text-[#226597] animate-pulse" />
+                    <p className="text-xs font-bold text-[#113F67]">
+                      Click to upload multiple images or <span className="text-emerald-600 underline">paste clipped images (Ctrl+V)</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      Supports selecting multiple files or pasting sequential clipboard images.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Multiple Images Gallery Grid Preview */}
+                {Array.isArray(params.image_urls) && params.image_urls.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-[#87C0CD]/30 dark:border-[#233554]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                        Uploaded Gallery ({params.image_urls.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setParams({ ...params, image_urls: [] })}
+                        className="text-[10px] text-rose-600 hover:underline font-bold"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
+                      {params.image_urls.map((imgUrl, idx) => (
+                        <div key={idx} className="relative group w-full h-20 bg-white rounded-xl border border-[#87C0CD]/30 p-1 shadow-2xs overflow-hidden">
+                          <img src={imgUrl} alt={`Variant Cable ${idx + 1}`} className="w-full h-full object-contain" />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveVariantImage(idx)}
+                            className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full opacity-80 group-hover:opacity-100 hover:bg-rose-700 transition shadow-xs"
+                            title="Delete image"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                          {idx === 0 && (
+                            <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-[#113F67] text-white text-[8px] font-extrabold rounded uppercase tracking-wider">
+                              Primary
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Header Specifications */}
@@ -1034,7 +1179,7 @@ export function CableCalculator() {
                 </table>
               </div>
 
-              {/* Single-Click Atomic Save & Sync Button */}
+              {/* Single-Click Save Button */}
               <button
                 onClick={handleSaveVariantAndSync}
                 disabled={saving || !selectedProductId}
@@ -1045,7 +1190,7 @@ export function CableCalculator() {
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    <span>Save Variant Setup & Sync Selling Price (₹{Math.round(sellingPrice).toLocaleString('en-IN')})</span>
+                    <span>Save Variant Setup (₹{Math.round(sellingPrice).toLocaleString('en-IN')})</span>
                     <ArrowRight className="w-4 h-4 ml-1" />
                   </>
                 )}
@@ -1059,7 +1204,7 @@ export function CableCalculator() {
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 border-b border-[#87C0CD]/30 pb-4">
             <div>
               <h2 className="text-base font-extrabold text-[#113F67] font-display">
-                Part Code Variant Configurations
+                Part Code Variant Configurations ({filteredConfigurations.length} of {configurations.length})
               </h2>
             </div>
 

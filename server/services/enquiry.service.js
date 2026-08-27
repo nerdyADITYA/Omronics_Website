@@ -15,6 +15,13 @@ export class EnquiryService {
   }
 
   async create(data) {
+    let variantDetailsJson = null;
+    if (data.variant_details) {
+      variantDetailsJson = typeof data.variant_details === 'object'
+        ? JSON.stringify(data.variant_details)
+        : String(data.variant_details);
+    }
+
     const payload = {
       source_type: data.source_type || 'CONTACT',
       reference_id: data.reference_id || null,
@@ -26,11 +33,14 @@ export class EnquiryService {
       country: data.country || null,
       subject: data.subject || null,
       requirement: data.requirement,
+      variant_details: variantDetailsJson,
       attachment: data.attachment || null,
       status: 'NEW',
     };
 
     const enquiry = await enquiryRepository.create(payload);
+    // Attach parsed variant_details object for email template rendering
+    enquiry.variant_details = data.variant_details;
 
     // Send email notification asynchronously in background for instant HTTP response (<100ms)
     sendEnquiryNotification(enquiry).catch((err) => {

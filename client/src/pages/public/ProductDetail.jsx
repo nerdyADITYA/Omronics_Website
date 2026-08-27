@@ -190,23 +190,68 @@ export function ProductDetail() {
     );
   }
 
-  const galleryImages = [];
-  if (product.thumbnail_image) {
-    galleryImages.push(product.thumbnail_image);
-  }
-  if (Array.isArray(product.images) && product.images.length > 0) {
-    product.images.forEach((img) => {
-      if (img.image_url && !galleryImages.includes(img.image_url)) {
-        galleryImages.push(img.image_url);
-      }
-    });
-  }
-
-  const currentImageUrl = galleryImages[selectedImageIndex] || null;
-  const embedUrl = getYouTubeEmbedUrl(product.video_url);
-
   const variants = Array.isArray(product.part_code_variants) ? product.part_code_variants : [];
   const selectedVariant = variants.find((v) => String(v.id) === String(selectedVariantId)) || null;
+
+  const activeVariantDetails = selectedVariant
+    ? {
+        product_name: product.product_name,
+        part_code: selectedVariant.part_code,
+        frame_size: selectedVariant.frame_size,
+        motor_type: selectedVariant.motor_type,
+        cable_dimension: selectedVariant.cable_dimension,
+        connectors: [selectedVariant.connector1_name, selectedVariant.connector2_name].filter(Boolean).join(' + '),
+        default_length: selectedVariant.default_length,
+        variant_price: selectedVariant.calculated_price,
+      }
+    : null;
+
+  // Extract all custom variant images (supports image_urls array or image_url string)
+  const variantImages = [];
+  if (selectedVariant) {
+    if (Array.isArray(selectedVariant.image_urls) && selectedVariant.image_urls.length > 0) {
+      variantImages.push(...selectedVariant.image_urls);
+    } else if (typeof selectedVariant.image_url === 'string' && selectedVariant.image_url.trim().length > 0) {
+      const trimmed = selectedVariant.image_url.trim();
+      if (trimmed.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) variantImages.push(...parsed);
+          else variantImages.push(trimmed);
+        } catch (e) {
+          variantImages.push(trimmed);
+        }
+      } else {
+        variantImages.push(trimmed);
+      }
+    }
+  }
+
+  // Build Dynamic Gallery Images:
+  // 1. If a specific variant is selected AND it has custom images, show ONLY that variant's images.
+  // 2. In default mode (selectedVariantId is empty) OR if selected variant has no custom images, show ONLY default product images.
+  const galleryImages = [];
+  if (selectedVariantId && variantImages.length > 0) {
+    variantImages.forEach((img) => {
+      if (img && !galleryImages.includes(img)) {
+        galleryImages.push(img);
+      }
+    });
+  } else {
+    if (product.thumbnail_image && !galleryImages.includes(product.thumbnail_image)) {
+      galleryImages.push(product.thumbnail_image);
+    }
+    if (Array.isArray(product.images) && product.images.length > 0) {
+      product.images.forEach((img) => {
+        if (img.image_url && !galleryImages.includes(img.image_url)) {
+          galleryImages.push(img.image_url);
+        }
+      });
+    }
+  }
+
+  const currentImageUrl = galleryImages[selectedImageIndex] || galleryImages[0] || null;
+  const embedUrl = getYouTubeEmbedUrl(product.video_url);
 
   const displayPrice = selectedVariant
     ? selectedVariant.calculated_price
@@ -220,6 +265,11 @@ export function ProductDetail() {
 
   const handleNextImage = () => {
     setSelectedImageIndex((prev) => (prev === galleryImages.length - 1 ? 0 : prev + 1));
+  };
+
+  const handleVariantSelect = (variantId) => {
+    setSelectedVariantId(variantId);
+    setSelectedImageIndex(0); // Reset image index to show first image of selected view
   };
 
   const handleDownloadPdf = (doc, fallbackName) => {
@@ -351,35 +401,37 @@ export function ProductDetail() {
               )}
             </div>
 
-            {/* Product Specifications Summary */}
+            {/* Product Meta & Actions */}
             <div className="lg:col-span-6 space-y-6">
-              <div>
-                <span className="inline-block text-xs font-extrabold uppercase tracking-widest text-[#226597] bg-[#E4F1F5] px-3 py-1 rounded-full border border-[#87C0CD]/40 mb-3">
+              <div className="space-y-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#226597] bg-[#E4F1F5] px-3 py-1 rounded-full border border-[#87C0CD]/40 inline-block font-sans">
                   {product.category_name || 'Industrial Product'}
                 </span>
-                <h1 className="text-3xl sm:text-4xl font-extrabold font-display text-[#113F67] leading-tight break-words">
+                <h1 className="text-3xl font-extrabold text-[#113F67] font-display tracking-tight leading-tight">
                   {product.product_name}
                 </h1>
                 {product.model_number && (
-                  <p className="text-xs font-mono text-[#226597] font-semibold mt-2 bg-[#E4F1F5] inline-block px-2.5 py-1 rounded-lg border border-[#87C0CD]/40">
-                    Model: {product.model_number}
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-wider font-sans">
+                    Model: <span className="text-[#226597] font-mono">{product.model_number}</span>
                   </p>
                 )}
+              </div>
 
-                {/* Part Code Variant Selector Dropdown */}
+              {/* Variant Pricing & Selector Box */}
+              <div className="p-4 bg-[#E4F1F5]/60 border border-[#87C0CD]/40 rounded-2xl space-y-3 font-sans">
                 {variants.length > 0 && (
-                  <div className="mt-4 p-4 rounded-2xl bg-[#E4F1F5]/80 border border-[#87C0CD]/40 space-y-2 font-sans shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-[11px] font-extrabold text-[#113F67] uppercase tracking-wider">
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-xs font-extrabold text-[#113F67] uppercase tracking-wider">
                         Select Part Code & Spec Variant
                       </label>
-                      <span className="text-[10px] font-extrabold text-[#226597] bg-white px-2 py-0.5 rounded border border-[#87C0CD]/30">
-                        {variants.length} Part Code{variants.length > 1 ? 's' : ''} Available
+                      <span className="text-[10px] font-bold text-[#226597]">
+                        {variants.length} Part Codes Available
                       </span>
                     </div>
                     <select
                       value={selectedVariantId}
-                      onChange={(e) => setSelectedVariantId(e.target.value)}
+                      onChange={(e) => handleVariantSelect(e.target.value)}
                       className="w-full px-3.5 py-2.5 bg-white border border-[#87C0CD]/50 rounded-xl text-xs font-bold text-[#113F67] focus:outline-none focus:border-[#226597] shadow-xs cursor-pointer"
                     >
                       <option value="">-- Default Price (₹{Number(product.price || 0).toLocaleString('en-IN')}) --</option>
@@ -445,155 +497,140 @@ export function ProductDetail() {
               </div>
 
               {product.short_description && (
-                <p className="text-slate-600 text-xs sm:text-sm leading-relaxed break-words whitespace-pre-line">
+                <p className="text-slate-600 text-xs sm:text-sm leading-relaxed break-words whitespace-pre-line font-sans">
                   {product.short_description}
                 </p>
               )}
 
-              {product.description && (
-                <p className="text-slate-600 text-xs leading-relaxed break-words whitespace-pre-line pt-2 border-t border-[#87C0CD]/30">
-                  {product.description}
-                </p>
-              )}
+              {/* Action Buttons */}
+              <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 font-sans">
+                <button
+                  onClick={() => setLeadModalOpen(true)}
+                  className="px-6 py-3.5 rounded-xl bg-[#226597] text-white hover:bg-[#113F67] font-bold text-xs shadow-md transition flex items-center justify-center space-x-2 group cursor-pointer"
+                >
+                  <span>Request Official Quote</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
+                </button>
 
-              {/* CTA Action Box */}
-              <div className="p-6 rounded-2xl bg-white border border-[#87C0CD]/40 space-y-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[#113F67]">Custom Lengths & Specs Available</span>
-                  <span className="text-[10px] font-bold text-[#226597] bg-[#E4F1F5] px-2.5 py-1 rounded-full border border-[#87C0CD]/40">In Production</span>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-center gap-3">
+                {embedUrl && (
                   <button
-                    onClick={() => setLeadModalOpen(true)}
-                    className="w-full sm:flex-1 py-3 px-6 bg-[#226597] hover:bg-[#113F67] text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-2"
+                    onClick={() => setVideoModalOpen(true)}
+                    className="px-6 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md transition flex items-center justify-center space-x-2 cursor-pointer"
                   >
-                    <span>Request Instant Quote</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <Video className="w-4 h-4" />
+                    <span>Watch Demo Video</span>
                   </button>
-
-                  {product.documents && product.documents.length > 0 && (() => {
-                    const doc = product.documents[0];
-
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadPdf(doc, product.product_name)}
-                        className="w-full sm:w-auto py-3 px-4 bg-[#E4F1F5] hover:bg-[#CBE2E8] text-[#113F67] font-bold text-xs rounded-xl border border-[#87C0CD]/50 transition flex items-center justify-center space-x-2 shadow-sm transform hover:-translate-y-0.5 cursor-pointer"
-                      >
-                        <Download className="w-4 h-4 text-[#226597]" />
-                        <span>Download PDF Catalog</span>
-                      </button>
-                    );
-                  })()}
-
-                  {embedUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setVideoModalOpen(true)}
-                      className="w-full sm:w-auto py-3 px-4 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition flex items-center justify-center space-x-2 shadow-sm transform hover:-translate-y-0.5 cursor-pointer"
-                    >
-                      <Video className="w-4 h-4 text-rose-600" />
-                      <span>Watch Demo Video</span>
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
 
-              {/* Key Features Bullet List */}
-              {renderKeyFeatures(product.features)}
+              {/* Document Downloads Section */}
+              {Array.isArray(product.documents) && product.documents.length > 0 && (
+                <div className="pt-4 border-t border-[#87C0CD]/30 space-y-3 font-sans">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#113F67]">
+                    Technical Documentation & Catalogues
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {product.documents.map((doc, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleDownloadPdf(doc, product.product_name)}
+                        className="p-3 rounded-xl bg-white border border-[#87C0CD]/30 hover:border-[#226597] text-[#113F67] text-left transition flex items-center justify-between group shadow-xs cursor-pointer"
+                      >
+                        <div className="flex items-center space-x-2.5 overflow-hidden">
+                          <FileText className="w-4 h-4 text-[#226597] shrink-0" />
+                          <span className="text-xs font-semibold truncate">
+                            {doc.document_name}
+                          </span>
+                        </div>
+                        <Download className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#226597] shrink-0 ml-2" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Embedded YouTube Video Section */}
-          {embedUrl && (
-            <div className="glass-panel p-8 rounded-3xl space-y-4 border border-[#87C0CD]/40 mb-12 shadow-sm">
-              <div className="flex items-center space-x-2">
-                <Video className="w-5 h-5 text-rose-600" />
-                <h3 className="text-lg font-bold font-display text-[#113F67]">Product Demo Video</h3>
+          {/* Tabbed Specifications & Features Detail Grid */}
+          <div className="glass-panel rounded-3xl p-6 sm:p-8 border border-[#87C0CD]/40 shadow-sm space-y-8 font-sans">
+            {product.specifications && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#113F67] font-display border-b border-[#87C0CD]/30 pb-2">
+                  Technical Specifications Table
+                </h3>
+                {renderSpecificationsTable(product.specifications)}
               </div>
-              <div className="relative w-full aspect-video rounded-2xl overflow-hidden shadow-md bg-black border border-[#87C0CD]/30">
-                <iframe
-                  src={embedUrl}
-                  title={`${product.product_name} Demo Video`}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  className="w-full h-full border-0"
-                />
+            )}
+
+            {product.description && (
+              <div className="space-y-3 pt-4 border-t border-[#87C0CD]/30">
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#113F67] font-display">
+                  Product Overview & Description
+                </h3>
+                <div className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
+                  {renderFormattedText(product.description)}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Full Specifications Table Section */}
-          {product.specifications && (
-            <div className="glass-panel p-8 rounded-3xl space-y-4 border border-[#87C0CD]/40 mb-12 shadow-sm">
-              <h3 className="text-lg font-bold font-display text-[#113F67]">Technical Specifications</h3>
-              {renderSpecificationsTable(product.specifications)}
-            </div>
-          )}
-
-          {/* Applications */}
-          {product.applications && (
-            <div className="glass-panel p-8 rounded-3xl space-y-4 border border-[#87C0CD]/40 shadow-sm">
-              <h3 className="text-lg font-bold font-display text-[#113F67]">Industrial Applications</h3>
-              {renderApplications(product.applications)}
-            </div>
-          )}
+            {product.features && renderKeyFeatures(product.features)}
+            {product.applications && (
+              <div className="space-y-4 pt-4 border-t border-[#87C0CD]/30">
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#113F67] font-display">
+                  Industrial Applications & Integration
+                </h3>
+                {renderApplications(product.applications)}
+              </div>
+            )}
+          </div>
         </div>
       </main>
 
       {/* Lightbox Modal */}
-      {lightboxOpen && (
-        <div className="fixed inset-0 z-50 bg-[#113F67]/80 backdrop-blur-md flex items-center justify-center p-4">
-          <button
-            onClick={() => setLightboxOpen(false)}
-            className="absolute top-6 right-6 p-2 rounded-full bg-white hover:bg-[#F3F9FB] text-[#113F67] shadow-lg"
-          >
-            <X className="w-6 h-6" />
-          </button>
-          <div className="max-w-4xl max-h-[85vh] p-4 flex items-center justify-center bg-white rounded-3xl shadow-2xl">
-            <img src={currentImageUrl} alt={product.product_name} className="max-w-full max-h-[80vh] object-contain rounded-2xl" />
+      {lightboxOpen && currentImageUrl && (
+        <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="relative max-w-4xl max-h-[90vh] w-full flex items-center justify-center">
+            <img src={currentImageUrl} alt={product.product_name} className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl" />
+            <button
+              onClick={() => setLightboxOpen(false)}
+              className="absolute -top-10 right-0 p-2 text-white hover:text-slate-300 transition"
+            >
+              <X className="w-6 h-6" />
+            </button>
           </div>
         </div>
       )}
 
-      {/* Video Modal */}
+      {/* YouTube Video Modal */}
       {videoModalOpen && embedUrl && (
-        <div className="fixed inset-0 z-50 bg-[#113F67]/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="relative w-full max-w-4xl bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/20">
-            <div className="flex items-center justify-between p-4 bg-[#113F67] text-white">
-              <h4 className="text-xs font-bold uppercase tracking-wider font-display flex items-center space-x-2">
-                <Video className="w-4 h-4 text-rose-400" />
-                <span>{product.product_name} - Product Demonstration</span>
-              </h4>
-              <button
-                onClick={() => setVideoModalOpen(false)}
-                className="p-1 rounded-lg hover:bg-white/10 text-white transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="relative w-full aspect-video">
-              <iframe
-                src={`${embedUrl}?autoplay=1`}
-                title={`${product.product_name} Demo Video`}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="w-full h-full border-0"
-              />
-            </div>
+        <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="relative max-w-3xl w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl">
+            <iframe
+              src={`${embedUrl}?autoplay=1`}
+              title="Product Video"
+              className="w-full h-full border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+            <button
+              onClick={() => setVideoModalOpen(false)}
+              className="absolute top-4 right-4 p-2 text-white bg-slate-900/80 rounded-full hover:bg-black transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
       )}
 
-      <Footer />
       <LeadModal
         isOpen={leadModalOpen}
         onClose={() => setLeadModalOpen(false)}
-        title={`Request Quote: ${product.product_name}`}
-        referenceId={product.id}
         sourceType="PRODUCT"
+        referenceId={product.id}
+        variantDetails={activeVariantDetails}
       />
+
+      <Footer />
     </div>
   );
 }

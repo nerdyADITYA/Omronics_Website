@@ -136,6 +136,40 @@ export async function sendEnquiryNotification(enquiry) {
   console.log(`[EMAIL ENGINE START] Processing Enquiry #${enquiry.id || 'N/A'} for "${enquiry.customer_name}" (${enquiry.email})`);
   console.log(`======================================================`);
 
+  let variant = null;
+  if (enquiry.variant_details) {
+    if (typeof enquiry.variant_details === 'string') {
+      try {
+        variant = JSON.parse(enquiry.variant_details);
+      } catch (e) {
+        variant = null;
+      }
+    } else if (typeof enquiry.variant_details === 'object') {
+      variant = enquiry.variant_details;
+    }
+  }
+
+  let variantHtml = '';
+  if (variant && (variant.part_code || variant.product_name)) {
+    variantHtml = `
+      <div style="margin: 16px 0; padding: 16px; background-color: #f0f9ff; border: 1px solid #b9e6fe; border-radius: 8px; font-family: Arial, sans-serif;">
+        <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: #0284c7; margin-bottom: 8px;">
+          Requested Part Code Spec Breakdown
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #0f172a;">
+          ${variant.product_name ? `<tr><td style="padding: 4px 0; color: #64748b; width: 150px;">Product Name:</td><td style="padding: 4px 0; font-weight: bold; color: #0369a1;">${variant.product_name}</td></tr>` : ''}
+          ${variant.part_code ? `<tr><td style="padding: 4px 0; color: #64748b;">Selected Part Code:</td><td style="padding: 4px 0; font-family: monospace; font-weight: bold; color: #0284c7;">${variant.part_code}</td></tr>` : ''}
+          ${variant.frame_size ? `<tr><td style="padding: 4px 0; color: #64748b;">Frame Size:</td><td style="padding: 4px 0; font-weight: bold;">${variant.frame_size}</td></tr>` : ''}
+          ${variant.motor_type ? `<tr><td style="padding: 4px 0; color: #64748b;">Motor / Power Spec:</td><td style="padding: 4px 0; font-weight: bold;">${variant.motor_type}</td></tr>` : ''}
+          ${variant.cable_dimension ? `<tr><td style="padding: 4px 0; color: #64748b;">Cable Dimensions:</td><td style="padding: 4px 0; font-weight: bold;">${variant.cable_dimension}</td></tr>` : ''}
+          ${variant.connectors ? `<tr><td style="padding: 4px 0; color: #64748b;">Connectors:</td><td style="padding: 4px 0; font-weight: bold;">${variant.connectors}</td></tr>` : ''}
+          ${variant.default_length ? `<tr><td style="padding: 4px 0; color: #64748b;">Cable Length:</td><td style="padding: 4px 0; font-weight: bold;">${variant.default_length}m</td></tr>` : ''}
+          ${variant.variant_price ? `<tr><td style="padding: 4px 0; color: #64748b;">Variant Unit Price:</td><td style="padding: 4px 0; font-weight: bold; color: #15803d; font-size: 15px;">₹${Number(variant.variant_price).toLocaleString('en-IN')} / Piece</td></tr>` : ''}
+        </table>
+      </div>
+    `;
+  }
+
   const customerSubject = `Thank you for contacting Omronics - [Enquiry #${enquiry.id || 'N/A'}]`;
   const customerHtml = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
@@ -146,8 +180,11 @@ export async function sendEnquiryNotification(enquiry) {
         <h2 style="color: #0f172a; margin-top: 0;">Enquiry Received</h2>
         <p>Dear <strong>${enquiry.customer_name}</strong>,</p>
         <p>Thank you for reaching out to Omronics Automation. We have received your technical requirement and an application engineer will review your specs and respond within 24 business hours.</p>
+        
+        ${variantHtml}
+
         <div style="background-color: #f8fafc; border-left: 4px solid #0066cc; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
-          <p style="margin: 0 0 8px 0; font-weight: bold; color: #1e293b;">Submitted Requirement Details:</p>
+          <p style="margin: 0 0 8px 0; font-weight: bold; color: #1e293b;">Submitted Requirement / Message:</p>
           <p style="margin: 0; color: #475569;">${enquiry.requirement}</p>
         </div>
         <p>If you have any urgent inquiries, please feel free to call our engineering support line at <strong>+91 98765 43210</strong>.</p>
@@ -157,20 +194,30 @@ export async function sendEnquiryNotification(enquiry) {
     </div>
   `;
 
-  const adminSubject = `🚨 New Lead Enquiry [${enquiry.source_type}]: ${enquiry.subject || 'Website Enquiry'}`;
+  const adminSubject = `🚨 New Quote Enquiry ${variant && variant.part_code ? `[Part Code: ${variant.part_code}]` : `[${enquiry.source_type}]`}: ${enquiry.customer_name}`;
   const adminHtml = `
-    <h2>New Customer Enquiry Received</h2>
-    <p><strong>Source:</strong> ${enquiry.source_type}</p>
-    <p><strong>Customer Name:</strong> ${enquiry.customer_name}</p>
-    <p><strong>Company:</strong> ${enquiry.company_name || 'N/A'}</p>
-    <p><strong>Email:</strong> ${enquiry.email}</p>
-    <p><strong>Phone:</strong> ${enquiry.phone || 'N/A'}</p>
-    <p><strong>City / Country:</strong> ${enquiry.city || ''} ${enquiry.country || ''}</p>
-    <p><strong>Requirement Details:</strong></p>
-    <blockquote style="background:#f4f4f4; padding:12px; border-left:4px solid #0066cc;">
-      ${enquiry.requirement}
-    </blockquote>
-    <p><small>Logged at ${new Date().toLocaleString()}</small></p>
+    <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; color: #333; line-height: 1.6;">
+      <div style="background-color: #113F67; padding: 18px; border-radius: 8px 8px 0 0; text-align: center;">
+        <h2 style="color: #ffffff; margin: 0; font-size: 20px;">🚨 New Quote Enquiry Received</h2>
+      </div>
+      <div style="padding: 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px; background-color: #ffffff;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px;">
+          <tr><td style="padding: 6px 0; color: #64748b; width: 140px; font-weight: bold;">Customer Name:</td><td style="padding: 6px 0; font-weight: bold; color: #113F67;">${enquiry.customer_name}</td></tr>
+          <tr><td style="padding: 6px 0; color: #64748b; font-weight: bold;">Company Name:</td><td style="padding: 6px 0;">${enquiry.company_name || 'N/A'}</td></tr>
+          <tr><td style="padding: 6px 0; color: #64748b; font-weight: bold;">Email Address:</td><td style="padding: 6px 0;"><a href="mailto:${enquiry.email}" style="color: #226597; font-weight: bold;">${enquiry.email}</a></td></tr>
+          <tr><td style="padding: 6px 0; color: #64748b; font-weight: bold;">Phone Number:</td><td style="padding: 6px 0;">${enquiry.phone || 'N/A'}</td></tr>
+          <tr><td style="padding: 6px 0; color: #64748b; font-weight: bold;">Location / City:</td><td style="padding: 6px 0;">${enquiry.city || 'N/A'}</td></tr>
+        </table>
+
+        ${variantHtml}
+
+        <p style="font-weight: bold; color: #113F67; margin-bottom: 6px;">Customer Notes / Technical Requirement:</p>
+        <blockquote style="background-color: #f8fafc; padding: 14px; border-left: 4px solid #226597; margin: 0; font-size: 13px; color: #334155; border-radius: 4px;">
+          ${enquiry.requirement}
+        </blockquote>
+        <p style="font-size: 11px; color: #94a3b8; margin-top: 20px;">Logged via Website Lead System at ${new Date().toLocaleString()}</p>
+      </div>
+    </div>
   `;
 
   const adminRecipient = process.env.EMAIL_USERNAME || 'adikadia05@gmail.com';
