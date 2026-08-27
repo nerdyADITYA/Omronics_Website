@@ -56,6 +56,21 @@ export function CableCalculator() {
   const fileInputRef = useRef(null);
   const variantImageInputRef = useRef(null);
 
+  // Custom Downward Variant Dropdown Selector State
+  const variantDropdownRef = useRef(null);
+  const [variantDropdownOpen, setVariantDropdownOpen] = useState(false);
+  const [variantSearchQuery, setVariantSearchQuery] = useState('');
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (variantDropdownRef.current && !variantDropdownRef.current.contains(event.target)) {
+        setVariantDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Reset to Page 1 when filters or itemsPerPage change
   useEffect(() => {
     setCurrentPage(1);
@@ -666,39 +681,157 @@ export function CableCalculator() {
                 </div>
 
                 {productVariants.length > 0 ? (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {productVariants.map((v) => {
-                      const isSelected = String(v.id) === String(activeVariantId);
-                      return (
-                        <div key={v.id} className="flex items-center">
-                          <button
-                            type="button"
-                            onClick={() => loadVariantIntoForm(v)}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-l-xl border border-r-0 transition flex items-center space-x-1.5 ${
-                              isSelected
-                                ? 'bg-[#226597] text-white border-[#226597] shadow-sm'
-                                : 'bg-[#F3F9FB] dark:bg-[#152238] text-[#113F67] dark:text-slate-200 border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#E4F1F5]'
-                            }`}
-                          >
-                            <Tag className="w-3 h-3 opacity-75" />
-                            <span>{v.part_code || 'Unnamed Part Code'}</span>
-                            {v.motor_type && <span className="opacity-75 text-[10px]">({v.motor_type})</span>}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteVariant(v.id)}
-                            className={`px-2 py-1.5 text-xs font-bold rounded-r-xl border border-l-0 transition ${
-                              isSelected
-                                ? 'bg-[#113F67] text-rose-300 hover:text-white border-[#226597]'
-                                : 'bg-[#F3F9FB] dark:bg-[#152238] text-slate-400 hover:text-rose-600 border-[#87C0CD]/40 dark:border-[#233554] hover:bg-rose-50'
-                            }`}
-                            title="Delete this variant"
-                          >
-                            ✕
-                          </button>
+                  <div className="flex items-center space-x-2 pt-1">
+                    {/* Custom Downward Dropdown Container */}
+                    <div className="relative flex-1" ref={variantDropdownRef}>
+                      <button
+                        type="button"
+                        onClick={() => setVariantDropdownOpen(!variantDropdownOpen)}
+                        className="w-full px-3.5 py-2.5 bg-[#F3F9FB] dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-xl text-xs font-bold text-[#113F67] dark:text-slate-200 focus:outline-none focus:border-[#226597] shadow-xs flex items-center justify-between transition cursor-pointer text-left"
+                      >
+                        <span className="truncate pr-2">
+                          {(() => {
+                            const selectedVariantItem = productVariants.find(
+                              (v) => String(v.id) === String(activeVariantId)
+                            );
+                            if (selectedVariantItem) {
+                              return (
+                                <>
+                                  <span className="font-mono text-[#226597] dark:text-[#38bdf8] font-extrabold">
+                                    {selectedVariantItem.part_code}
+                                  </span>
+                                  {selectedVariantItem.motor_type && (
+                                    <span className="text-[#113F67] dark:text-slate-300 font-semibold ml-1.5">
+                                      ({selectedVariantItem.motor_type})
+                                    </span>
+                                  )}
+                                  <span className="text-emerald-700 dark:text-emerald-400 font-extrabold ml-1.5">
+                                    - ₹{Number(selectedVariantItem.selling_price || 0).toLocaleString('en-IN')}
+                                  </span>
+                                </>
+                              );
+                            }
+                            return (
+                              <span className="text-slate-500 font-medium">
+                                -- Creating New Variant (Or Select Existing Below) --
+                              </span>
+                            );
+                          })()}
+                        </span>
+                        <ChevronRight
+                          className={`w-4 h-4 text-slate-400 transform transition-transform shrink-0 ${
+                            variantDropdownOpen ? '-rotate-90' : 'rotate-90'
+                          }`}
+                        />
+                      </button>
+
+                      {/* Absolute Downward Options Menu (Always Opens Downward!) */}
+                      {variantDropdownOpen && (
+                        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-xl shadow-2xl overflow-hidden font-sans animate-in fade-in slide-in-from-top-1 duration-150">
+                          {/* Search Filter Box inside Dropdown if > 5 items */}
+                          {productVariants.length > 5 && (
+                            <div className="p-2 border-b border-[#87C0CD]/30 dark:border-[#233554] bg-[#F3F9FB] dark:bg-[#0f1b36]">
+                              <input
+                                type="text"
+                                placeholder="Search Part Code or Motor Spec..."
+                                value={variantSearchQuery}
+                                onChange={(e) => setVariantSearchQuery(e.target.value)}
+                                className="w-full px-3 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-[#226597]"
+                                autoFocus
+                              />
+                            </div>
+                          )}
+
+                          <div className="max-h-60 overflow-y-auto divide-y divide-[#87C0CD]/10 dark:divide-[#233554]/50 py-1">
+                            {/* Option to create brand new variant */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                resetToNewVariant(selectedProductId);
+                                setVariantDropdownOpen(false);
+                                setVariantSearchQuery('');
+                              }}
+                              className={`w-full px-3.5 py-2.5 text-left text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                                !activeVariantId
+                                  ? 'bg-[#226597] text-white'
+                                  : 'text-[#113F67] dark:text-slate-200 hover:bg-[#F3F9FB] dark:hover:bg-[#1e2e4a]'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-1.5">
+                                <Plus className="w-3.5 h-3.5 text-emerald-500" />
+                                <span>+ Create Brand New Part Code Variant</span>
+                              </div>
+                            </button>
+
+                            {(() => {
+                              const filteredVariants = productVariants.filter((v) => {
+                                if (!variantSearchQuery.trim()) return true;
+                                const q = variantSearchQuery.toLowerCase();
+                                return (
+                                  (v.part_code && v.part_code.toLowerCase().includes(q)) ||
+                                  (v.motor_type && v.motor_type.toLowerCase().includes(q)) ||
+                                  (v.frame_size && v.frame_size.toLowerCase().includes(q))
+                                );
+                              });
+
+                              if (filteredVariants.length === 0) {
+                                return (
+                                  <div className="p-3 text-center text-xs text-slate-400 italic">
+                                    No variants match search query.
+                                  </div>
+                                );
+                              }
+
+                              return filteredVariants.map((v) => {
+                                const isSelected = String(v.id) === String(activeVariantId);
+                                return (
+                                  <button
+                                    key={v.id}
+                                    type="button"
+                                    onClick={() => {
+                                      loadVariantIntoForm(v);
+                                      setVariantDropdownOpen(false);
+                                      setVariantSearchQuery('');
+                                    }}
+                                    className={`w-full px-3.5 py-2.5 text-left text-xs transition flex items-center justify-between cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-[#E4F1F5] dark:bg-[#1e2e4a] text-[#226597] dark:text-[#38bdf8] font-extrabold border-l-4 border-[#226597]'
+                                        : 'text-[#113F67] dark:text-slate-200 hover:bg-[#F3F9FB] dark:hover:bg-[#111c33] font-semibold'
+                                    }`}
+                                  >
+                                    <div className="flex flex-col space-y-0.5 min-w-0 pr-2">
+                                      <span className="font-mono text-xs font-bold text-[#113F67] dark:text-slate-100 truncate">
+                                        {v.part_code || 'Unnamed Part Code'}
+                                      </span>
+                                      {v.motor_type && (
+                                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                                          {v.motor_type} {v.frame_size ? `(${v.frame_size})` : ''}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-xs font-mono font-extrabold text-emerald-600 dark:text-emerald-400 shrink-0">
+                                      ₹{Number(v.selling_price || 0).toLocaleString('en-IN')}
+                                    </span>
+                                  </button>
+                                );
+                              });
+                            })()}
+                          </div>
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
+
+                    {activeVariantId && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteVariant(activeVariantId)}
+                        className="px-3 py-2.5 text-xs font-bold bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 rounded-xl transition flex items-center space-x-1 cursor-pointer shrink-0"
+                        title="Delete selected variant setup"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete</span>
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl text-[11px] text-amber-800 dark:text-amber-200 font-medium">

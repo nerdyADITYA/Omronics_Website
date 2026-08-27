@@ -18,6 +18,9 @@ BigInt.prototype.toJSON = function () {
 
 const app = express();
 
+// Trust Cloud Reverse Proxy (Render / Vercel / Cloudflare) for express-rate-limit & X-Forwarded-For IP resolution
+app.set('trust proxy', 1);
+
 // Security Headers
 app.use(
   helmet({
