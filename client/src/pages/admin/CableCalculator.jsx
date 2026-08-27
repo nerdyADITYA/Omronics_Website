@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Calculator,
   Settings2,
@@ -17,7 +17,14 @@ import {
   Edit3,
   Filter,
   X,
+  FileSpreadsheet,
+  UploadCloud,
+  Download,
+  AlertTriangle,
+  HelpCircle,
+  Info,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import api from '../../services/api';
 
 export function CableCalculator() {
@@ -32,6 +39,14 @@ export function CableCalculator() {
   // Setup Overview Filter Dropdowns State
   const [filterProductName, setFilterProductName] = useState('ALL');
   const [filterPartCode, setFilterPartCode] = useState('ALL');
+
+  // Excel Import & Safety Confirmation Modal State
+  const [importingFile, setImportingFile] = useState(false);
+  const [executingImport, setExecutingImport] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState(null); // { totalRows, toInsert, toUpdate, unchanged, errors }
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showImportGuide, setShowImportGuide] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Derive unique product names for filter dropdown
   const uniqueProductNames = Array.from(
@@ -104,69 +119,25 @@ export function CableCalculator() {
         setConfigurations(configRes.data);
       }
     } catch (err) {
-      console.error('Failed to load cable calculator data:', err);
+      setFeedback({ type: 'error', message: err.message || 'Failed to load cable calculator data.' });
     } finally {
       setLoading(false);
     }
   };
 
-  // Saved Variants for the currently selected product
+  // Filter part code variants available for currently selected product
   const productVariants = configurations.filter(
     (c) => String(c.product_id) === String(selectedProductId)
   );
 
-  useEffect(() => {
-    if (!selectedProductId) return;
-    const variants = configurations.filter(
-      (c) => String(c.product_id) === String(selectedProductId)
-    );
-
-    if (variants.length > 0) {
-      // If we haven't selected a variant yet, or selected one not in this product, default to first variant
-      const currentExists = variants.find((v) => String(v.id) === String(activeVariantId));
-      if (currentExists) {
-        loadVariantIntoForm(currentExists);
-      } else {
-        loadVariantIntoForm(variants[0]);
-      }
-    } else {
-      // Reset form to blank new variant for this product
-      resetToNewVariant(selectedProductId);
-    }
-  }, [selectedProductId, configurations]);
-
-  const loadVariantIntoForm = (variant) => {
-    setActiveVariantId(variant.id);
-    setParams({
-      id: variant.id,
-      product_id: String(variant.product_id),
-      frame_size: variant.frame_size || '',
-      motor_type: variant.motor_type || '',
-      part_code: variant.part_code || '',
-      default_length: variant.default_length !== undefined && variant.default_length !== null ? Number(variant.default_length) : 5,
-      cable_dimension: variant.cable_dimension || '',
-      cable_cost_per_meter: variant.cable_cost_per_meter !== undefined && variant.cable_cost_per_meter !== null ? variant.cable_cost_per_meter : '',
-      connector1_name: variant.connector1_name || '',
-      connector1_cost: variant.connector1_cost !== undefined && variant.connector1_cost !== null ? variant.connector1_cost : '',
-      connector2_name: variant.connector2_name || '',
-      connector2_cost: variant.connector2_cost !== undefined && variant.connector2_cost !== null ? variant.connector2_cost : '',
-      labour_cost: variant.labour_cost !== undefined && variant.labour_cost !== null ? variant.labour_cost : '',
-      battery_name: variant.battery_name || '',
-      battery_cost: variant.battery_cost !== undefined && variant.battery_cost !== null ? variant.battery_cost : '',
-      margin_percentage: variant.margin_percentage !== undefined && variant.margin_percentage !== null ? Number(variant.margin_percentage) : 35,
-      additional_components: Array.isArray(variant.additional_components) ? variant.additional_components : [],
-    });
-  };
-
   const resetToNewVariant = (productId = selectedProductId) => {
-    const selectedProd = servoProducts.find((p) => String(p.id) === String(productId));
     setActiveVariantId(null);
     setParams({
       id: null,
-      product_id: String(productId),
+      product_id: productId,
       frame_size: '',
       motor_type: '',
-      part_code: selectedProd?.model_number || '',
+      part_code: '',
       default_length: 5,
       cable_dimension: '',
       cable_cost_per_meter: '',
@@ -174,7 +145,7 @@ export function CableCalculator() {
       connector1_cost: '',
       connector2_name: '',
       connector2_cost: '',
-      labour_cost: '',
+      labour_cost: 150,
       battery_name: '',
       battery_cost: '',
       margin_percentage: 35,
@@ -182,88 +153,106 @@ export function CableCalculator() {
     });
   };
 
-  // Dynamic Extra Component Handlers
-  const handleAddExtraComponent = () => {
-    setParams((prev) => ({
-      ...prev,
-      additional_components: [
-        ...(Array.isArray(prev.additional_components) ? prev.additional_components : []),
-        { name: '', cost: '' },
-      ],
-    }));
-  };
-
-  const handleUpdateExtraComponent = (index, field, value) => {
-    setParams((prev) => {
-      const list = [...(Array.isArray(prev.additional_components) ? prev.additional_components : [])];
-      list[index] = { ...list[index], [field]: value };
-      return { ...prev, additional_components: list };
+  const loadVariantIntoForm = (variant) => {
+    setActiveVariantId(variant.id);
+    setParams({
+      id: variant.id,
+      product_id: variant.product_id,
+      frame_size: variant.frame_size || '',
+      motor_type: variant.motor_type || '',
+      part_code: variant.part_code || '',
+      default_length: Number(variant.default_length) || 5,
+      cable_dimension: variant.cable_dimension || '',
+      cable_cost_per_meter: variant.cable_cost_per_meter || '',
+      connector1_name: variant.connector1_name || '',
+      connector1_cost: variant.connector1_cost || '',
+      connector2_name: variant.connector2_name || '',
+      connector2_cost: variant.connector2_cost || '',
+      labour_cost: variant.labour_cost !== undefined ? variant.labour_cost : 150,
+      battery_name: variant.battery_name || '',
+      battery_cost: variant.battery_cost || '',
+      margin_percentage: Number(variant.margin_percentage) || 35,
+      additional_components: Array.isArray(variant.additional_components) ? variant.additional_components : [],
     });
   };
 
-  const handleRemoveExtraComponent = (index) => {
-    setParams((prev) => {
-      const list = [...(Array.isArray(prev.additional_components) ? prev.additional_components : [])];
-      list.splice(index, 1);
-      return { ...prev, additional_components: list };
-    });
-  };
-
-  // Live Formula Calculations
+  // Calculations
   const lengthVal = Number(params.default_length) || 0;
   const cablePerMeter = Number(params.cable_cost_per_meter) || 0;
   const rawCableCost = lengthVal * cablePerMeter;
+
   const c1Cost = Number(params.connector1_cost) || 0;
   const c2Cost = Number(params.connector2_cost) || 0;
   const labourCost = Number(params.labour_cost) || 0;
   const batteryCost = Number(params.battery_cost) || 0;
 
-  const extraComponentsCost = Array.isArray(params.additional_components)
-    ? params.additional_components.reduce((sum, item) => sum + (Number(item.cost) || 0), 0)
-    : 0;
+  const extraComponentsCost = (params.additional_components || []).reduce(
+    (sum, item) => sum + (Number(item.cost) || 0),
+    0
+  );
 
-  // C10 Landing Cost = (C5 * C6) + C7 + C8 + C9 + Battery + Extra Components
   const landingCost = rawCableCost + c1Cost + c2Cost + labourCost + batteryCost + extraComponentsCost;
-  // C11 Margin %
   const marginPct = Number(params.margin_percentage) || 0;
-  // C12 Profit Margin Cost = C11 * C10
   const profitMarginCost = (marginPct / 100) * landingCost;
-  // C13 Selling Price = C12 + C10
   const sellingPrice = landingCost + profitMarginCost;
 
-  const handleSaveVariantAndSync = async (e) => {
-    if (e) e.preventDefault();
+  const handleAddExtraComponent = () => {
+    setParams({
+      ...params,
+      additional_components: [...(params.additional_components || []), { name: '', cost: '' }],
+    });
+  };
+
+  const handleUpdateExtraComponent = (index, field, value) => {
+    const updated = [...(params.additional_components || [])];
+    updated[index] = { ...updated[index], [field]: value };
+    setParams({ ...params, additional_components: updated });
+  };
+
+  const handleRemoveExtraComponent = (index) => {
+    const updated = (params.additional_components || []).filter((_, i) => i !== index);
+    setParams({ ...params, additional_components: updated });
+  };
+
+  // Single-Click Atomic Save & Sync
+  const handleSaveVariantAndSync = async () => {
     if (!selectedProductId) {
-      alert('Please select a Servo Cable product.');
+      setFeedback({ type: 'error', message: 'Please select a Servo Cable product.' });
       return;
     }
+    if (!params.part_code || !params.part_code.trim()) {
+      setFeedback({ type: 'error', message: 'Part Code is required.' });
+      return;
+    }
+
     setSaving(true);
     setFeedback(null);
-    try {
-      const finalPrice = Math.round(sellingPrice);
-      const finalLanding = Math.round(landingCost);
-      // 1. Save component configuration (with landing_cost, selling_price, and id if editing)
-      const configRes = await api.post('/cable-costs', {
-        ...params,
-        landing_cost: finalLanding,
-        selling_price: finalPrice,
-        id: activeVariantId,
-        product_id: selectedProductId,
-      });
-      // 2. Sync product price
-      const priceRes = await api.post('/cable-costs/sync-price', {
-        productId: selectedProductId,
-        sellingPrice: finalPrice,
-      });
 
-      if (configRes.success && priceRes.success) {
+    const payload = {
+      ...params,
+      id: activeVariantId, // if set, updates existing variant row
+      product_id: Number(selectedProductId),
+      landing_cost: Math.round(landingCost),
+      selling_price: Math.round(sellingPrice),
+    };
+
+    try {
+      const saveRes = await api.post('/cable-costs', payload);
+      if (saveRes.success) {
+        const savedPrice = Math.round(sellingPrice);
+        await api.post('/cable-costs/sync-price', {
+          productId: selectedProductId,
+          sellingPrice: savedPrice,
+        });
+
         setFeedback({
           type: 'success',
-          message: `Saved variant setup "${params.part_code || 'Part Code'}" and updated Product Catalog price to ₹${finalPrice.toLocaleString('en-IN')}!`,
+          message: `Saved Part Code setup "${params.part_code}" & synced Selling Price ₹${savedPrice.toLocaleString('en-IN')} to product catalog!`,
         });
+
         await loadData();
-        if (configRes.data && configRes.data.id) {
-          setActiveVariantId(configRes.data.id);
+        if (saveRes.data && saveRes.data.id) {
+          setActiveVariantId(saveRes.data.id);
         }
       }
     } catch (err) {
@@ -293,6 +282,174 @@ export function CableCalculator() {
     }
   };
 
+  // Excel Sample Download Handler
+  const handleDownloadSampleTemplate = async () => {
+    try {
+      const response = await api.get('/cable-costs/download-template', {
+        responseType: 'blob',
+      });
+      const blob = new Blob([response], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'servo_cable_import_sample.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setFeedback({ type: 'error', message: 'Failed to download sample Excel template.' });
+    }
+  };
+
+  // Filter-Aware Excel Export Handler
+  const handleExportToExcel = () => {
+    if (!filteredConfigurations || filteredConfigurations.length === 0) {
+      setFeedback({ type: 'error', message: 'No cable records available to export.' });
+      return;
+    }
+
+    const exportRows = filteredConfigurations.map((c) => {
+      const len = Number(c.default_length) || 0;
+      const cCost = Number(c.cable_cost_per_meter) || 0;
+      const c1 = Number(c.connector1_cost) || 0;
+      const c2 = Number(c.connector2_cost) || 0;
+      const labour = Number(c.labour_cost) || 0;
+      const battery = Number(c.battery_cost) || 0;
+      const extra = Array.isArray(c.additional_components)
+        ? c.additional_components.reduce((sum, item) => sum + (Number(item.cost) || 0), 0)
+        : 0;
+      const computedLanding = Math.round(len * cCost + c1 + c2 + labour + battery + extra);
+      const landingVal = c.landing_cost ? Math.round(Number(c.landing_cost)) : computedLanding;
+      const sellingVal = c.selling_price ? Math.round(Number(c.selling_price)) : Math.round(landingVal * (1 + (Number(c.margin_percentage) || 0) / 100));
+
+      return {
+        product_name: c.product_name || '',
+        part_code: c.part_code || '',
+        frame_size: c.frame_size || '',
+        motor_type: c.motor_type || '',
+        default_length: len,
+        cable_dimension: c.cable_dimension || '',
+        cable_cost_per_meter: cCost,
+        connector1_name: c.connector1_name || '',
+        connector1_cost: c1,
+        connector2_name: c.connector2_name || '',
+        connector2_cost: c2,
+        labour_cost: labour,
+        battery_name: c.battery_name || '',
+        battery_cost: battery,
+        margin_percentage: Number(c.margin_percentage) || 0,
+        additional_components: Array.isArray(c.additional_components) ? JSON.stringify(c.additional_components) : '',
+        landing_cost: landingVal,
+        selling_price: sellingVal,
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Servo Cable Setups');
+
+    worksheet['!cols'] = [
+      { wch: 24 }, // product_name
+      { wch: 22 }, // part_code
+      { wch: 24 }, // frame_size
+      { wch: 30 }, // motor_type
+      { wch: 15 }, // default_length
+      { wch: 22 }, // cable_dimension
+      { wch: 22 }, // cable_cost_per_meter
+      { wch: 22 }, // connector1_name
+      { wch: 16 }, // connector1_cost
+      { wch: 22 }, // connector2_name
+      { wch: 16 }, // connector2_cost
+      { wch: 14 }, // labour_cost
+      { wch: 16 }, // battery_name
+      { wch: 14 }, // battery_cost
+      { wch: 18 }, // margin_percentage
+      { wch: 24 }, // additional_components
+      { wch: 16 }, // landing_cost
+      { wch: 16 }, // selling_price
+    ];
+
+    let filename = 'servo_cables_export.xlsx';
+    if (filterProductName !== 'ALL' && filterPartCode !== 'ALL') {
+      filename = `servo_cables_${filterProductName.replace(/\s+/g, '_')}_${filterPartCode.replace(/\s+/g, '_')}.xlsx`;
+    } else if (filterProductName !== 'ALL') {
+      filename = `servo_cables_${filterProductName.replace(/\s+/g, '_')}.xlsx`;
+    } else if (filterPartCode !== 'ALL') {
+      filename = `servo_cables_${filterPartCode.replace(/\s+/g, '_')}.xlsx`;
+    }
+
+    XLSX.writeFile(workbook, filename);
+
+    setFeedback({
+      type: 'success',
+      message: `Successfully exported ${exportRows.length} cable variant setup(s) to "${filename}".`,
+    });
+  };
+
+  // Excel File Select & Analysis Handler
+  const handleFileSelectForImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setImportingFile(true);
+    setFeedback(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await api.post('/cable-costs/analyze-import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      if (res.success && res.data) {
+        setAnalysisResult(res.data);
+        setShowImportModal(true);
+      } else {
+        setFeedback({ type: 'error', message: res.message || 'Failed to analyze Excel import file.' });
+      }
+    } catch (err) {
+      setFeedback({ type: 'error', message: err.message || 'Error parsing Excel import file.' });
+    } finally {
+      setImportingFile(false);
+      e.target.value = '';
+    }
+  };
+
+  // Batch Execution Confirm Handler
+  const handleConfirmExecuteImport = async () => {
+    if (!analysisResult) return;
+
+    setExecutingImport(true);
+
+    const recordsToProcess = [
+      ...analysisResult.toInsert,
+      ...analysisResult.toUpdate.map((u) => u.payload),
+    ];
+
+    try {
+      const res = await api.post('/cable-costs/execute-import', { records: recordsToProcess });
+      if (res.success) {
+        setFeedback({
+          type: 'success',
+          message: `Successfully imported ${res.data.totalProcessed || recordsToProcess.length} cable variant setups (${res.data.insertedCount} inserted, ${res.data.updatedCount} modified).`,
+        });
+        setShowImportModal(false);
+        setAnalysisResult(null);
+        await loadData();
+      } else {
+        setFeedback({ type: 'error', message: res.message || 'Failed to execute batch import.' });
+      }
+    } catch (err) {
+      setFeedback({ type: 'error', message: err.message || 'Failed to execute batch import.' });
+    } finally {
+      setExecutingImport(false);
+    }
+  };
+
   const currentProduct = servoProducts.find((p) => String(p.id) === String(selectedProductId));
 
   if (loading) {
@@ -306,6 +463,15 @@ export function CableCalculator() {
 
   return (
     <div className="space-y-6 font-sans w-full max-w-[1600px] mx-auto px-2 sm:px-4">
+      {/* Hidden File Input for Excel Import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx, .xls, .csv"
+        onChange={handleFileSelectForImport}
+        className="hidden"
+      />
+
       {/* Header Bar */}
       <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -320,15 +486,15 @@ export function CableCalculator() {
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex items-center space-x-2 bg-[#F3F9FB] p-1.5 rounded-xl border border-[#87C0CD]/30">
+        {/* Tab Switcher Navigation */}
+        <div className="flex items-center space-x-2 bg-[#F3F9FB] dark:bg-[#0f1b36] p-1.5 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
           <button
             onClick={() => setActiveTab('calculator')}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
               activeTab === 'calculator' ? 'bg-[#226597] text-white shadow-sm' : 'text-slate-600 hover:text-[#113F67]'
             }`}
           >
-            <Calculator className="w-4 h-4" />
+            <Sliders className="w-4 h-4" />
             <span>Interactive Calculator</span>
           </button>
           <button
@@ -343,7 +509,7 @@ export function CableCalculator() {
         </div>
       </div>
 
-      {/* Feedback Alert */}
+      {/* Global Alert Feedback Banner */}
       {feedback && (
         <div
           className={`p-4 rounded-xl text-xs font-bold flex items-center justify-between shadow-xs ${
@@ -356,7 +522,7 @@ export function CableCalculator() {
             {feedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
             <span>{feedback.message}</span>
           </div>
-          <button onClick={() => setFeedback(null)} className="hover:opacity-75">
+          <button onClick={() => setFeedback(null)} className="hover:opacity-75 cursor-pointer">
             ✕
           </button>
         </div>
@@ -502,7 +668,7 @@ export function CableCalculator() {
                       placeholder="e.g. S6-L-P014-xx.x or S6-L-P020-xx.x"
                       value={params.part_code}
                       onChange={(e) => setParams({ ...params, part_code: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-mono font-bold text-[#226597] placeholder:text-slate-400"
+                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400 font-mono"
                     />
                   </div>
                 </div>
@@ -678,8 +844,8 @@ export function CableCalculator() {
                           <button
                             type="button"
                             onClick={() => handleRemoveExtraComponent(idx)}
-                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition cursor-pointer"
-                            title="Remove Component"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded transition"
+                            title="Remove component"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -687,7 +853,7 @@ export function CableCalculator() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-[11px] text-slate-400 italic">No extra components added. Click above to add dynamic connectors or hardware.</p>
+                    <p className="text-[11px] text-slate-500 italic">No extra hardware components added yet.</p>
                   )}
                 </div>
               </div>
@@ -800,22 +966,6 @@ export function CableCalculator() {
                       <td className="px-4 py-3 text-right text-slate-500">Unit Price</td>
                       <td className="px-4 py-3 text-right font-mono font-bold">₹{c2Cost.toLocaleString('en-IN')}</td>
                     </tr>
-
-                    {/* Dynamic Extra Components Rows */}
-                    {Array.isArray(params.additional_components) &&
-                      params.additional_components.map((item, idx) => {
-                        const itemCost = Number(item.cost) || 0;
-                        return (
-                          <tr key={idx} className="bg-amber-50/20">
-                            <td className="px-4 py-3 font-semibold">
-                              {item.name || `Extra Component ${idx + 3}`}
-                            </td>
-                            <td className="px-4 py-3 text-right text-slate-500">Unit Price</td>
-                            <td className="px-4 py-3 text-right font-mono font-bold">₹{itemCost.toLocaleString('en-IN')}</td>
-                          </tr>
-                        );
-                      })}
-
                     <tr>
                       <td className="px-4 py-3 font-semibold">Labour Cost</td>
                       <td className="px-4 py-3 text-right text-slate-500">Assembly</td>
@@ -886,20 +1036,17 @@ export function CableCalculator() {
           </div>
         </div>
       ) : (
-        /* Tab 2: Complete Setup Overview Table with Product Name & Part Code Filters */
+        /* Tab 2: Setup Overview Data Table & Controls Header Bar */
         <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-6 space-y-6 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-[#87C0CD]/30 pb-4">
+          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 border-b border-[#87C0CD]/30 pb-4">
             <div>
               <h2 className="text-base font-extrabold text-[#113F67] font-display">
-                All Saved Part Code Variant Configurations ({filteredConfigurations.length} of {configurations.length})
+                Part Code Variant Configurations ({filteredConfigurations.length} of {configurations.length})
               </h2>
-              <p className="text-xs text-slate-500">
-                Complete overview of all configured Part Codes across all Servo Cable products.
-              </p>
             </div>
 
-            {/* Interactive Dropdown Filters */}
-            <div className="flex flex-wrap items-center gap-3">
+            {/* Data Table Filters & Excel Data Actions Bar */}
+            <div className="flex flex-wrap items-center gap-2.5">
               {/* Product Name Filter Dropdown */}
               <div className="flex items-center space-x-1.5">
                 <Filter className="w-3.5 h-3.5 text-[#226597]" />
@@ -952,8 +1099,129 @@ export function CableCalculator() {
                   <span>Reset</span>
                 </button>
               )}
+
+              {/* Vertical Separator */}
+              <div className="h-6 w-px bg-[#87C0CD]/40 mx-1 hidden sm:block"></div>
+
+              {/* 1. Download Sample Excel Template */}
+              <button
+                type="button"
+                onClick={handleDownloadSampleTemplate}
+                className="px-3.5 py-1.5 bg-[#E4F1F5] dark:bg-[#0f1b36] hover:bg-[#87C0CD]/30 text-[#113F67] dark:text-[#38bdf8] border border-[#87C0CD]/40 dark:border-[#233554] text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                title="Download pre-formatted sample Excel import template"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Sample Excel</span>
+              </button>
+
+              {/* 2. Import Excel File */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importingFile}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                title="Upload Excel file to batch import cable prices"
+              >
+                {importingFile ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <UploadCloud className="w-3.5 h-3.5" />
+                )}
+                <span>{importingFile ? 'Analyzing...' : 'Import Excel'}</span>
+              </button>
+
+              {/* 3. Export Excel File */}
+              <button
+                type="button"
+                onClick={handleExportToExcel}
+                className="px-3.5 py-1.5 bg-[#226597] hover:bg-[#113F67] text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                title={`Export ${filteredConfigurations.length} ${filterProductName !== 'ALL' || filterPartCode !== 'ALL' ? 'filtered' : 'all'} record(s) to Excel`}
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>
+                  Export Excel ({filteredConfigurations.length})
+                </span>
+              </button>
+
+              {/* 4. Toggle Excel Field Requirements Guide */}
+              <button
+                type="button"
+                onClick={() => setShowImportGuide(!showImportGuide)}
+                className={`p-1.5 rounded-xl border text-xs font-bold transition flex items-center justify-center cursor-pointer ${
+                  showImportGuide
+                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+                    : 'bg-[#F3F9FB] dark:bg-[#0b1329] text-[#226597] dark:text-[#38bdf8] border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#E4F1F5]'
+                }`}
+                title="Toggle Excel import field requirements guide"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
             </div>
           </div>
+
+          {/* Interactive Excel Import Field Requirements Guide */}
+          {showImportGuide && (
+            <div className="p-4 bg-sky-50/80 dark:bg-[#0f1b36] border border-[#87C0CD]/40 dark:border-[#233554] rounded-xl text-xs space-y-3 shadow-xs animate-fade-in">
+              <div className="flex items-center justify-between border-b border-[#87C0CD]/30 dark:border-[#233554] pb-2">
+                <div className="flex items-center space-x-2 font-extrabold text-[#113F67] dark:text-[#f8fafc]">
+                  <Info className="w-4 h-4 text-[#226597] dark:text-[#38bdf8]" />
+                  <span>Excel File Import Field Guidelines & Requirements</span>
+                </div>
+                <button
+                  onClick={() => setShowImportGuide(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px]">
+                {/* Required Columns */}
+                <div className="p-3.5 bg-white dark:bg-[#152238] border border-emerald-200 dark:border-emerald-900/50 rounded-lg space-y-2">
+                  <span className="font-extrabold text-emerald-700 dark:text-emerald-400 flex items-center space-x-1.5 text-xs">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>MANDATORY / REQUIRED FIELDS</span>
+                  </span>
+                  <ul className="space-y-1.5 text-slate-700 dark:text-slate-300">
+                    <li>
+                      <code className="font-mono text-emerald-800 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">product_name</code>: Must match catalog product name (e.g., <span className="italic font-semibold">INNOVANCE</span>, <span className="italic font-semibold">DELTA</span>).
+                    </li>
+                    <li>
+                      <code className="font-mono text-emerald-800 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">part_code</code>: Unique Part Code identifier (e.g., <span className="italic font-semibold">S6-L-P014-xx.x</span>).
+                    </li>
+                    <li>
+                      <code className="font-mono text-emerald-800 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">cable_cost_per_meter</code>: Raw cable cost per meter in ₹ (e.g., <span className="italic font-semibold">90</span>).
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Optional Columns */}
+                <div className="p-3.5 bg-white dark:bg-[#152238] border border-sky-200 dark:border-sky-900/50 rounded-lg space-y-2">
+                  <span className="font-extrabold text-[#226597] dark:text-[#38bdf8] flex items-center space-x-1.5 text-xs">
+                    <Info className="w-4 h-4" />
+                    <span>OPTIONAL FIELDS (AUTOMATIC DEFAULTS IF BLANK)</span>
+                  </span>
+                  <ul className="space-y-1.5 text-slate-700 dark:text-slate-300">
+                    <li>
+                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">default_length</code>: Cable length in meters (Default: <span className="font-bold">5m</span>).
+                    </li>
+                    <li>
+                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">connector1_name</code> / <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">connector1_cost</code>: Primary connector.
+                    </li>
+                    <li>
+                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">connector2_name</code> / <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">connector2_cost</code>: Secondary connector.
+                    </li>
+                    <li>
+                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">labour_cost</code>: Assembly labour fee (Default: <span className="font-bold">₹150</span>).
+                    </li>
+                    <li>
+                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">margin_percentage</code>: Profit margin % (Default: <span className="font-bold">35%</span>).
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-[#113F67]">
@@ -1056,6 +1324,173 @@ export function CableCalculator() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Pre-Import Safety Analysis & Confirmation Modal */}
+      {showImportModal && analysisResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-2xl max-w-3xl w-full p-6 space-y-6 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col font-sans">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-[#87C0CD]/30 dark:border-[#233554] pb-4 shrink-0">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
+                  <FileSpreadsheet className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-[#113F67] dark:text-[#f8fafc] font-display">
+                    Excel Import Analysis & Confirmation
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Review records found in file before committing changes to the database.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setAnalysisResult(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Field Requirements Reminder in Modal */}
+            <div className="p-3 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/50 rounded-xl text-[11px] flex items-center justify-between text-slate-700 dark:text-slate-300 shrink-0">
+              <span>
+                <strong className="text-[#226597] dark:text-[#38bdf8]">Mandatory Columns:</strong> <code className="font-mono font-bold">product_name</code>, <code className="font-mono font-bold">part_code</code>, <code className="font-mono font-bold">cable_cost_per_meter</code>.
+              </span>
+              <span className="text-slate-400">All other columns use defaults if empty.</span>
+            </div>
+
+            {/* Metric Summary Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
+              <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 rounded-xl">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block">
+                  New Records
+                </span>
+                <span className="text-lg font-extrabold text-emerald-700 dark:text-emerald-400 block pt-0.5">
+                  {analysisResult.toInsert.length} to Insert
+                </span>
+              </div>
+
+              <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-xl">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 block">
+                  Existing Records
+                </span>
+                <span className="text-lg font-extrabold text-amber-700 dark:text-amber-400 block pt-0.5">
+                  {analysisResult.toUpdate.length} to Modify/Overwrite
+                </span>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 dark:bg-[#0f1b36] border border-slate-200 dark:border-[#233554] rounded-xl">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                  Unchanged
+                </span>
+                <span className="text-lg font-extrabold text-slate-700 dark:text-slate-300 block pt-0.5">
+                  {analysisResult.unchanged.length} Identical
+                </span>
+              </div>
+
+              <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/50 rounded-xl">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-800 dark:text-rose-300 block">
+                  Errors / Skipped
+                </span>
+                <span className="text-lg font-extrabold text-rose-700 dark:text-rose-400 block pt-0.5">
+                  {analysisResult.errors.length} Rows
+                </span>
+              </div>
+            </div>
+
+            {/* Validation Errors Alert if any */}
+            {analysisResult.errors.length > 0 && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/50 rounded-xl text-xs space-y-1 shrink-0">
+                <span className="font-extrabold text-rose-800 dark:text-rose-300 block">
+                  ⚠️ Skipping {analysisResult.errors.length} Invalid Rows:
+                </span>
+                <ul className="list-disc list-inside text-rose-700 dark:text-rose-300 text-[11px] space-y-0.5 max-h-20 overflow-y-auto">
+                  {analysisResult.errors.map((err, idx) => (
+                    <li key={idx}>Row #{err.row}: {err.message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Overwritten Records Comparison Table */}
+            {analysisResult.toUpdate.length > 0 ? (
+              <div className="space-y-2 flex-1 overflow-y-auto min-h-[140px]">
+                <span className="text-xs font-bold text-[#113F67] dark:text-[#f8fafc] block">
+                  Existing Records That Will Be Modified / Overwritten ({analysisResult.toUpdate.length}):
+                </span>
+                <div className="border border-[#87C0CD]/30 dark:border-[#233554] rounded-xl overflow-hidden text-xs">
+                  <table className="w-full text-left">
+                    <thead className="bg-[#F3F9FB] dark:bg-[#111c33] uppercase text-[10px] font-extrabold text-[#113F67] dark:text-[#38bdf8] border-b border-[#87C0CD]/30 dark:border-[#233554]">
+                      <tr>
+                        <th className="px-3 py-2">Part Code</th>
+                        <th className="px-3 py-2">Product</th>
+                        <th className="px-3 py-2 text-right">Landing Cost Diff</th>
+                        <th className="px-3 py-2 text-right">Final Selling Price Diff</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#87C0CD]/20 dark:divide-[#233554]">
+                      {analysisResult.toUpdate.map((u, idx) => (
+                        <tr key={idx} className="hover:bg-[#F3F9FB]/60 dark:hover:bg-[#1e2e4a]">
+                          <td className="px-3 py-2 font-mono font-bold text-[#226597] dark:text-[#38bdf8]">{u.part_code}</td>
+                          <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-300">{u.product_name}</td>
+                          <td className="px-3 py-2 text-right font-mono text-slate-600 dark:text-slate-400">
+                            <span className="line-through text-slate-400">₹{u.old_landing_cost}</span> ➔{' '}
+                            <span className="font-bold text-[#113F67] dark:text-white">₹{u.new_landing_cost}</span>
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono">
+                            <span className="line-through text-slate-400">₹{u.old_selling_price}</span> ➔{' '}
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400">₹{u.new_selling_price}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 font-medium shrink-0">
+                ✓ No existing database records will be overwritten. All {analysisResult.toInsert.length} items are brand new Part Code configurations!
+              </div>
+            )}
+
+            {/* Modal Footer Actions */}
+            <div className="flex items-center justify-end space-x-3 border-t border-[#87C0CD]/30 dark:border-[#233554] pt-4 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setAnalysisResult(null);
+                }}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExecuteImport}
+                disabled={executingImport || (analysisResult.toInsert.length === 0 && analysisResult.toUpdate.length === 0)}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+              >
+                {executingImport ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                <span>
+                  {executingImport
+                    ? 'Executing Database Upsert...'
+                    : `Confirm & Execute Import (${analysisResult.toInsert.length + analysisResult.toUpdate.length} Records)`}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}

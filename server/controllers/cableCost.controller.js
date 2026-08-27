@@ -57,3 +57,36 @@ export async function syncSellingPrice(req, res) {
     return sendError(res, err.message || 'Failed to sync selling price to product.', err.statusCode || 500);
   }
 }
+
+export async function downloadSampleTemplate(req, res) {
+  try {
+    const buffer = cableCostService.generateSampleTemplate();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="servo_cable_import_sample.xlsx"');
+    return res.send(buffer);
+  } catch (err) {
+    return sendError(res, err.message || 'Failed to generate sample template.', 500);
+  }
+}
+
+export async function analyzeImport(req, res) {
+  try {
+    if (!req.file) {
+      return sendError(res, 'Please upload an Excel file (.xlsx, .xls, .csv).', 400);
+    }
+    const analysis = await cableCostService.analyzeExcelImport(req.file.buffer);
+    return sendSuccess(res, analysis, 'Excel import analyzed successfully.');
+  } catch (err) {
+    return sendError(res, err.message || 'Failed to analyze Excel import file.', err.statusCode || 500);
+  }
+}
+
+export async function executeImport(req, res) {
+  try {
+    const { records } = req.body;
+    const result = await cableCostService.executeBatchImport(records);
+    return sendSuccess(res, result, 'Batch cable configurations imported successfully.');
+  } catch (err) {
+    return sendError(res, err.message || 'Failed to execute batch import.', err.statusCode || 500);
+  }
+}
