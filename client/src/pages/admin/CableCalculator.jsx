@@ -26,9 +26,72 @@ import {
   ChevronLeft,
   ChevronRight,
   Image as ImageIcon,
+  Copy,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../../services/api';
+
+// Function to compute canonical base model template (e.g. S6-L-B107-20.0 -> S6-L-B107-xx.x, MR-J3ENSCBL5M-L -> MR-J3ENSCBLxxM-L)
+function getBasePartCodeTemplate(partCode) {
+  if (!partCode) return '';
+  let str = String(partCode).trim();
+  if (/(\d+|xx)M/i.test(str)) {
+    return str.replace(/(\d+|xx)M/gi, 'xxM');
+  }
+  if (/-\d{1,2}\.\d+$/.test(str)) {
+    return str.replace(/-\d{1,2}\.\d+$/, '-xx.x');
+  }
+  if (/xx\.x/i.test(str)) {
+    return str;
+  }
+  if (str.endsWith('-')) {
+    return `${str}xx.x`;
+  }
+  if (/-\d+$/.test(str)) {
+    return str.replace(/-\d+$/, '-xxM');
+  }
+  return str;
+}
+
+// Universal Multi-OEM Part Code Length Formatter
+function formatPartCodeWithLength(basePartCode, length) {
+  if (!basePartCode) return '';
+  const lenNum = Number(length) || 5;
+  const decimalSuffix = lenNum < 10 ? `0${lenNum.toFixed(1)}` : `${lenNum.toFixed(1)}`;
+  const meterSuffix = `${lenNum}M`;
+
+  let result = String(basePartCode).trim();
+
+  if (/(\d+|xx)M/i.test(result)) {
+    return result.replace(/(\d+|xx)M/gi, meterSuffix);
+  }
+  if (/xx\.x/i.test(result)) {
+    return result.replace(/xx\.x/gi, decimalSuffix);
+  }
+  if (/-\d{1,2}\.\d+$/.test(result)) {
+    return result.replace(/-\d{1,2}\.\d+$/, `-${decimalSuffix}`);
+  }
+  if (result.endsWith('-')) {
+    return `${result}${decimalSuffix}`;
+  }
+  if (/-\d+$/.test(result)) {
+    return result.replace(/-\d+$/, `-${lenNum}`);
+  }
+  return `${result}-${meterSuffix}`;
+}
+
+function getVariantLength(variant) {
+  if (!variant) return 5;
+  if (variant.default_length !== undefined && variant.default_length !== null && !isNaN(Number(variant.default_length))) {
+    return Number(variant.default_length);
+  }
+  const pc = String(variant.part_code || '');
+  const mMatch = pc.match(/(\d+)M/i);
+  if (mMatch) return Number(mMatch[1]);
+  const decMatch = pc.match(/-(\d{1,2})\.\d+/);
+  if (decMatch) return Number(decMatch[1]);
+  return 5;
+}
 
 export function CableCalculator() {
   const [activeTab, setActiveTab] = useState('calculator'); // 'calculator' | 'setup'
@@ -38,6 +101,7 @@ export function CableCalculator() {
 
   // Active Variant Selection State
   const [activeVariantId, setActiveVariantId] = useState(null); // null means creating a NEW variant
+  const [selectedModelKey, setSelectedModelKey] = useState('');
 
   // Setup Overview Filter Dropdowns State
   const [filterProductName, setFilterProductName] = useState('ALL');
@@ -166,8 +230,33 @@ export function CableCalculator() {
     (c) => String(c.product_id) === String(selectedProductId)
   );
 
+  // Group into distinct base models (e.g. B107-xx.x and M107-xx.x)
+  const distinctModelVariants = [];
+  const seenBaseTemplates = new Set();
+  productVariants.forEach((v) => {
+    const baseTemplate = getBasePartCodeTemplate(v.part_code);
+    const groupKey = `${baseTemplate}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
+    if (!seenBaseTemplates.has(groupKey)) {
+      seenBaseTemplates.add(groupKey);
+      distinctModelVariants.push({
+        ...v,
+        base_template: baseTemplate,
+        model_group_key: groupKey,
+      });
+    }
+  });
+
+  // Available lengths for the active selected base model
+  const availableVariantsForModel = productVariants.filter((v) => {
+    const t = getBasePartCodeTemplate(v.part_code);
+    const key = `${t}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
+    return key === selectedModelKey;
+  });
+  availableVariantsForModel.sort((a, b) => getVariantLength(a) - getVariantLength(b));
+
   const resetToNewVariant = (productId = selectedProductId) => {
     setActiveVariantId(null);
+    setSelectedModelKey('');
     setParams({
       id: null,
       product_id: productId,
@@ -192,6 +281,10 @@ export function CableCalculator() {
 
   const loadVariantIntoForm = (variant) => {
     setActiveVariantId(variant.id);
+    const baseTemplate = getBasePartCodeTemplate(variant.part_code);
+    const groupKey = `${baseTemplate}__${variant.motor_type || ''}__${variant.frame_size || ''}`.toLowerCase();
+    setSelectedModelKey(groupKey);
+
     let urls = [];
     if (Array.isArray(variant.image_urls) && variant.image_urls.length > 0) {
       urls = variant.image_urls;
@@ -228,6 +321,49 @@ export function CableCalculator() {
       additional_components: Array.isArray(variant.additional_components) ? variant.additional_components : [],
       image_urls: urls,
     });
+  };
+
+  const handleSelectModel = (modelKey) => {
+    setSelectedModelKey(modelKey);
+    if (!modelKey) {
+      resetToNewVariant(selectedProductId);
+      return;
+    }
+    const matching = productVariants.filter((v) => {
+      const t = getBasePartCodeTemplate(v.part_code);
+      const key = `${t}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
+      return key === modelKey;
+    });
+    if (matching.length > 0) {
+      const match = matching.find((v) => getVariantLength(v) === 5) || matching[0];
+      loadVariantIntoForm(match);
+    }
+  };
+
+  const handleAddDifferentLength = () => {
+    if (!params.part_code) return;
+    const currentBase = getBasePartCodeTemplate(params.part_code);
+    const existingLens = availableVariantsForModel.map((v) => getVariantLength(v));
+    const candidateLens = [1, 2, 3, 5, 8, 10, 15, 18, 20, 25, 30];
+    const nextLen = candidateLens.find((l) => !existingLens.includes(l)) || (Math.max(...existingLens, 5) + 5);
+
+    const newPartCode = formatPartCodeWithLength(params.part_code, nextLen);
+    setActiveVariantId(null);
+    setParams((prev) => ({
+      ...prev,
+      id: null,
+      default_length: nextLen,
+      part_code: newPartCode,
+    }));
+    setFeedback({
+      type: 'success',
+      message: `Cloned specifications from ${currentBase}. Set length to ${nextLen}m (${newPartCode}). Review details and click "Save Variant Setup" below to insert.`,
+    });
+  };
+
+  const handleAddNewModel = () => {
+    setSelectedModelKey('');
+    resetToNewVariant(selectedProductId);
   };
 
   // Calculations
@@ -398,89 +534,56 @@ export function CableCalculator() {
     }
   };
 
-  // Filter-Aware Excel Export Handler
-  const handleExportToExcel = () => {
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  // Filter-Aware Visual Excel Export Handler (Embeds Real Images into Cells!)
+  const handleExportToExcel = async () => {
     if (!filteredConfigurations || filteredConfigurations.length === 0) {
       setFeedback({ type: 'error', message: 'No cable records available to export.' });
       return;
     }
 
-    const exportRows = filteredConfigurations.map((c) => {
-      const len = Number(c.default_length) || 0;
-      const cCost = Number(c.cable_cost_per_meter) || 0;
-      const c1 = Number(c.connector1_cost) || 0;
-      const c2 = Number(c.connector2_cost) || 0;
-      const labour = Number(c.labour_cost) || 0;
-      const battery = Number(c.battery_cost) || 0;
-      const extra = Array.isArray(c.additional_components)
-        ? c.additional_components.reduce((sum, item) => sum + (Number(item.cost) || 0), 0)
-        : 0;
-      const computedLanding = Math.round(len * cCost + c1 + c2 + labour + battery + extra);
-      const landingVal = c.landing_cost ? Math.round(Number(c.landing_cost)) : computedLanding;
-      const sellingVal = c.selling_price ? Math.round(Number(c.selling_price)) : Math.round(landingVal * (1 + (Number(c.margin_percentage) || 0) / 100));
+    setExportingExcel(true);
+    setFeedback(null);
 
-      return {
-        product_name: c.product_name || '',
-        part_code: c.part_code || '',
-        frame_size: c.frame_size || '',
-        motor_type: c.motor_type || '',
-        default_length: len,
-        cable_dimension: c.cable_dimension || '',
-        cable_cost_per_meter: cCost,
-        connector1_name: c.connector1_name || '',
-        connector1_cost: c1,
-        connector2_name: c.connector2_name || '',
-        connector2_cost: c2,
-        labour_cost: labour,
-        battery_name: c.battery_name || '',
-        battery_cost: battery,
-        margin_percentage: Number(c.margin_percentage) || 0,
-        additional_components: Array.isArray(c.additional_components) ? JSON.stringify(c.additional_components) : '',
-        landing_cost: landingVal,
-        selling_price: sellingVal,
-      };
-    });
+    try {
+      const response = await api.post(
+        '/cable-costs/export-excel',
+        { configurations: filteredConfigurations },
+        { responseType: 'blob' }
+      );
 
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Servo Cable Setups');
+      const blob = new Blob([response], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
 
-    worksheet['!cols'] = [
-      { wch: 24 }, // product_name
-      { wch: 22 }, // part_code
-      { wch: 24 }, // frame_size
-      { wch: 30 }, // motor_type
-      { wch: 15 }, // default_length
-      { wch: 22 }, // cable_dimension
-      { wch: 22 }, // cable_cost_per_meter
-      { wch: 22 }, // connector1_name
-      { wch: 16 }, // connector1_cost
-      { wch: 22 }, // connector2_name
-      { wch: 16 }, // connector2_cost
-      { wch: 14 }, // labour_cost
-      { wch: 16 }, // battery_name
-      { wch: 14 }, // battery_cost
-      { wch: 18 }, // margin_percentage
-      { wch: 24 }, // additional_components
-      { wch: 16 }, // landing_cost
-      { wch: 16 }, // selling_price
-    ];
+      let filename = 'servo_cables_export.xlsx';
+      if (filterProductName !== 'ALL' && filterPartCode !== 'ALL') {
+        filename = `servo_cables_${filterProductName.replace(/\s+/g, '_')}_${filterPartCode.replace(/\s+/g, '_')}.xlsx`;
+      } else if (filterProductName !== 'ALL') {
+        filename = `servo_cables_${filterProductName.replace(/\s+/g, '_')}.xlsx`;
+      } else if (filterPartCode !== 'ALL') {
+        filename = `servo_cables_${filterPartCode.replace(/\s+/g, '_')}.xlsx`;
+      }
 
-    let filename = 'servo_cables_export.xlsx';
-    if (filterProductName !== 'ALL' && filterPartCode !== 'ALL') {
-      filename = `servo_cables_${filterProductName.replace(/\s+/g, '_')}_${filterPartCode.replace(/\s+/g, '_')}.xlsx`;
-    } else if (filterProductName !== 'ALL') {
-      filename = `servo_cables_${filterProductName.replace(/\s+/g, '_')}.xlsx`;
-    } else if (filterPartCode !== 'ALL') {
-      filename = `servo_cables_${filterPartCode.replace(/\s+/g, '_')}.xlsx`;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setFeedback({
+        type: 'success',
+        message: `Successfully exported ${filteredConfigurations.length} cable variant setup(s) with embedded visual images to "${filename}".`,
+      });
+    } catch (err) {
+      setFeedback({ type: 'error', message: 'Failed to export visual Excel spreadsheet.' });
+    } finally {
+      setExportingExcel(false);
     }
-
-    XLSX.writeFile(workbook, filename);
-
-    setFeedback({
-      type: 'success',
-      message: `Successfully exported ${exportRows.length} cable variant setup(s) to "${filename}".`,
-    });
   };
 
   // Excel File Select & Analysis Handler
@@ -648,11 +751,23 @@ export function CableCalculator() {
                 <Layers className="w-4 h-4 text-[#226597]" />
                 <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#113F67]">1. Target Servo Product & Part Code Variant</h2>
               </div>
+              {/* Product Selector */}
               <div>
                 <label className="block text-xs font-bold text-[#113F67] mb-1.5">Select Servo Cable Product *</label>
                 <select
                   value={selectedProductId}
-                  onChange={(e) => setSelectedProductId(e.target.value)}
+                  onChange={(e) => {
+                    const prodId = e.target.value;
+                    setSelectedProductId(prodId);
+                    setSelectedModelKey('');
+                    setActiveVariantId(null);
+                    const matchingConfigs = configurations.filter((c) => String(c.product_id) === String(prodId));
+                    if (matchingConfigs.length > 0) {
+                      loadVariantIntoForm(matchingConfigs[0]);
+                    } else {
+                      resetToNewVariant(prodId);
+                    }
+                  }}
                   className="w-full px-3.5 py-2.5 bg-[#F3F9FB] border border-[#87C0CD]/40 rounded-xl text-xs text-[#113F67] font-bold focus:outline-none focus:border-[#226597]"
                 >
                   {servoProducts.map((p) => (
@@ -663,180 +778,235 @@ export function CableCalculator() {
                 </select>
               </div>
 
-              {/* Part Code Variant Selector Bar */}
-              <div className="pt-2 border-t border-[#87C0CD]/20 space-y-2">
+              {/* Part Code Model & Length Selector Bar */}
+              <div className="pt-2 border-t border-[#87C0CD]/20 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#113F67] flex items-center space-x-1">
                     <FileCode className="w-3.5 h-3.5 text-[#226597]" />
-                    <span>Saved Part Code Variants ({productVariants.length})</span>
+                    <span>1. Select Part Code Model ({distinctModelVariants.length} Models)</span>
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => resetToNewVariant(selectedProductId)}
-                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Add New Part Code Variant</span>
-                  </button>
-                </div>
-
-                {productVariants.length > 0 ? (
-                  <div className="flex items-center space-x-2 pt-1">
-                    {/* Custom Downward Dropdown Container */}
-                    <div className="relative flex-1" ref={variantDropdownRef}>
-                      <button
-                        type="button"
-                        onClick={() => setVariantDropdownOpen(!variantDropdownOpen)}
-                        className="w-full px-3.5 py-2.5 bg-[#F3F9FB] dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-xl text-xs font-bold text-[#113F67] dark:text-slate-200 focus:outline-none focus:border-[#226597] shadow-xs flex items-center justify-between transition cursor-pointer text-left"
-                      >
-                        <span className="truncate pr-2">
-                          {(() => {
-                            const selectedVariantItem = productVariants.find(
-                              (v) => String(v.id) === String(activeVariantId)
-                            );
-                            if (selectedVariantItem) {
-                              return (
-                                <>
-                                  <span className="font-mono text-[#226597] dark:text-[#38bdf8] font-extrabold">
-                                    {selectedVariantItem.part_code}
-                                  </span>
-                                  {selectedVariantItem.motor_type && (
-                                    <span className="text-[#113F67] dark:text-slate-300 font-semibold ml-1.5">
-                                      ({selectedVariantItem.motor_type})
-                                    </span>
-                                  )}
-                                  <span className="text-emerald-700 dark:text-emerald-400 font-extrabold ml-1.5">
-                                    - ₹{Number(selectedVariantItem.selling_price || 0).toLocaleString('en-IN')}
-                                  </span>
-                                </>
-                              );
-                            }
-                            return (
-                              <span className="text-slate-500 font-medium">
-                                -- Creating New Variant (Or Select Existing Below) --
-                              </span>
-                            );
-                          })()}
-                        </span>
-                        <ChevronRight
-                          className={`w-4 h-4 text-slate-400 transform transition-transform shrink-0 ${
-                            variantDropdownOpen ? '-rotate-90' : 'rotate-90'
-                          }`}
-                        />
-                      </button>
-
-                      {/* Absolute Downward Options Menu (Always Opens Downward!) */}
-                      {variantDropdownOpen && (
-                        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-xl shadow-2xl overflow-hidden font-sans animate-in fade-in slide-in-from-top-1 duration-150">
-                          {/* Search Filter Box inside Dropdown if > 5 items */}
-                          {productVariants.length > 5 && (
-                            <div className="p-2 border-b border-[#87C0CD]/30 dark:border-[#233554] bg-[#F3F9FB] dark:bg-[#0f1b36]">
-                              <input
-                                type="text"
-                                placeholder="Search Part Code or Motor Spec..."
-                                value={variantSearchQuery}
-                                onChange={(e) => setVariantSearchQuery(e.target.value)}
-                                className="w-full px-3 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-[#226597]"
-                                autoFocus
-                              />
-                            </div>
-                          )}
-
-                          <div className="max-h-60 overflow-y-auto divide-y divide-[#87C0CD]/10 dark:divide-[#233554]/50 py-1">
-                            {/* Option to create brand new variant */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                resetToNewVariant(selectedProductId);
-                                setVariantDropdownOpen(false);
-                                setVariantSearchQuery('');
-                              }}
-                              className={`w-full px-3.5 py-2.5 text-left text-xs font-bold transition flex items-center justify-between cursor-pointer ${
-                                !activeVariantId
-                                  ? 'bg-[#226597] text-white'
-                                  : 'text-[#113F67] dark:text-slate-200 hover:bg-[#F3F9FB] dark:hover:bg-[#1e2e4a]'
-                              }`}
-                            >
-                              <div className="flex items-center space-x-1.5">
-                                <Plus className="w-3.5 h-3.5 text-emerald-500" />
-                                <span>+ Create Brand New Part Code Variant</span>
-                              </div>
-                            </button>
-
-                            {(() => {
-                              const filteredVariants = productVariants.filter((v) => {
-                                if (!variantSearchQuery.trim()) return true;
-                                const q = variantSearchQuery.toLowerCase();
-                                return (
-                                  (v.part_code && v.part_code.toLowerCase().includes(q)) ||
-                                  (v.motor_type && v.motor_type.toLowerCase().includes(q)) ||
-                                  (v.frame_size && v.frame_size.toLowerCase().includes(q))
-                                );
-                              });
-
-                              if (filteredVariants.length === 0) {
-                                return (
-                                  <div className="p-3 text-center text-xs text-slate-400 italic">
-                                    No variants match search query.
-                                  </div>
-                                );
-                              }
-
-                              return filteredVariants.map((v) => {
-                                const isSelected = String(v.id) === String(activeVariantId);
-                                return (
-                                  <button
-                                    key={v.id}
-                                    type="button"
-                                    onClick={() => {
-                                      loadVariantIntoForm(v);
-                                      setVariantDropdownOpen(false);
-                                      setVariantSearchQuery('');
-                                    }}
-                                    className={`w-full px-3.5 py-2.5 text-left text-xs transition flex items-center justify-between cursor-pointer ${
-                                      isSelected
-                                        ? 'bg-[#E4F1F5] dark:bg-[#1e2e4a] text-[#226597] dark:text-[#38bdf8] font-extrabold border-l-4 border-[#226597]'
-                                        : 'text-[#113F67] dark:text-slate-200 hover:bg-[#F3F9FB] dark:hover:bg-[#111c33] font-semibold'
-                                    }`}
-                                  >
-                                    <div className="flex flex-col space-y-0.5 min-w-0 pr-2">
-                                      <span className="font-mono text-xs font-bold text-[#113F67] dark:text-slate-100 truncate">
-                                        {v.part_code || 'Unnamed Part Code'}
-                                      </span>
-                                      {v.motor_type && (
-                                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
-                                          {v.motor_type} {v.frame_size ? `(${v.frame_size})` : ''}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <span className="text-xs font-mono font-extrabold text-emerald-600 dark:text-emerald-400 shrink-0">
-                                      ₹{Number(v.selling_price || 0).toLocaleString('en-IN')}
-                                    </span>
-                                  </button>
-                                );
-                              });
-                            })()}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
+                  <div className="flex items-center space-x-1.5">
                     {activeVariantId && (
                       <button
                         type="button"
-                        onClick={() => handleDeleteVariant(activeVariantId)}
-                        className="px-3 py-2.5 text-xs font-bold bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 rounded-xl transition flex items-center space-x-1 cursor-pointer shrink-0"
-                        title="Delete selected variant setup"
+                        onClick={handleAddDifferentLength}
+                        className="px-2.5 py-1 bg-[#226597] hover:bg-[#113F67] text-white text-[11px] font-bold rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs"
+                        title="Clone specifications from active model for a new length"
                       >
-                        <Trash2 className="w-4 h-4" />
-                        <span>Delete</span>
+                        <Copy className="w-3 h-3" />
+                        <span>+ Add Length for this Model</span>
                       </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleAddNewModel}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs"
+                      title="Create a brand new Part Code model from scratch"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>+ Add New Model</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Step 1: Model Dropdown */}
+                {distinctModelVariants.length > 0 ? (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center space-x-2">
+                      <div className="relative flex-1" ref={variantDropdownRef}>
+                        <button
+                          type="button"
+                          onClick={() => setVariantDropdownOpen(!variantDropdownOpen)}
+                          className="w-full px-3.5 py-2.5 bg-[#F3F9FB] dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-xl text-xs font-bold text-[#113F67] dark:text-slate-200 focus:outline-none focus:border-[#226597] shadow-xs flex items-center justify-between transition cursor-pointer text-left"
+                        >
+                          <span className="truncate pr-2">
+                            {(() => {
+                              const selectedModelItem = distinctModelVariants.find(
+                                (m) => m.model_group_key === selectedModelKey
+                              );
+                              if (selectedModelItem) {
+                                return (
+                                  <>
+                                    <span className="font-mono text-[#226597] dark:text-[#38bdf8] font-extrabold">
+                                      {selectedModelItem.base_template}
+                                    </span>
+                                    {selectedModelItem.motor_type && (
+                                      <span className="text-[#113F67] dark:text-slate-300 font-semibold ml-1.5">
+                                        ({selectedModelItem.motor_type})
+                                      </span>
+                                    )}
+                                  </>
+                                );
+                              }
+                              return (
+                                <span className="text-slate-500 font-medium">
+                                  -- Creating New Model (Or Select Existing Below) --
+                                </span>
+                              );
+                            })()}
+                          </span>
+                          <ChevronRight
+                            className={`w-4 h-4 text-slate-400 transform transition-transform shrink-0 ${
+                              variantDropdownOpen ? '-rotate-90' : 'rotate-90'
+                            }`}
+                          />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {variantDropdownOpen && (
+                          <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-xl shadow-2xl overflow-hidden font-sans animate-in fade-in slide-in-from-top-1 duration-150">
+                            {distinctModelVariants.length > 5 && (
+                              <div className="p-2 border-b border-[#87C0CD]/30 dark:border-[#233554] bg-[#F3F9FB] dark:bg-[#0f1b36]">
+                                <input
+                                  type="text"
+                                  placeholder="Search Part Code Model or Motor Spec..."
+                                  value={variantSearchQuery}
+                                  onChange={(e) => setVariantSearchQuery(e.target.value)}
+                                  className="w-full px-3 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-[#226597]"
+                                  autoFocus
+                                />
+                              </div>
+                            )}
+
+                            <div className="max-h-60 overflow-y-auto divide-y divide-[#87C0CD]/10 dark:divide-[#233554]/50 py-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleAddNewModel();
+                                  setVariantDropdownOpen(false);
+                                  setVariantSearchQuery('');
+                                }}
+                                className={`w-full px-3.5 py-2.5 text-left text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                                  !activeVariantId && !selectedModelKey
+                                    ? 'bg-[#226597] text-white'
+                                    : 'text-[#113F67] dark:text-slate-200 hover:bg-[#F3F9FB] dark:hover:bg-[#1e2e4a]'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-1.5">
+                                  <Plus className="w-3.5 h-3.5 text-emerald-500" />
+                                  <span>+ Create Brand New Part Code Model</span>
+                                </div>
+                              </button>
+
+                              {(() => {
+                                const filteredModels = distinctModelVariants.filter((m) => {
+                                  if (!variantSearchQuery.trim()) return true;
+                                  const q = variantSearchQuery.toLowerCase();
+                                  return (
+                                    (m.base_template && m.base_template.toLowerCase().includes(q)) ||
+                                    (m.part_code && m.part_code.toLowerCase().includes(q)) ||
+                                    (m.motor_type && m.motor_type.toLowerCase().includes(q)) ||
+                                    (m.frame_size && m.frame_size.toLowerCase().includes(q))
+                                  );
+                                });
+
+                                if (filteredModels.length === 0) {
+                                  return (
+                                    <div className="p-3 text-center text-xs text-slate-400 italic">
+                                      No models match search query.
+                                    </div>
+                                  );
+                                }
+
+                                return filteredModels.map((m) => {
+                                  const isSelected = m.model_group_key === selectedModelKey;
+                                  return (
+                                    <button
+                                      key={m.model_group_key}
+                                      type="button"
+                                      onClick={() => {
+                                        handleSelectModel(m.model_group_key);
+                                        setVariantDropdownOpen(false);
+                                        setVariantSearchQuery('');
+                                      }}
+                                      className={`w-full px-3.5 py-2.5 text-left text-xs transition flex items-center justify-between cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-[#E4F1F5] dark:bg-[#1e2e4a] text-[#226597] dark:text-[#38bdf8] font-extrabold border-l-4 border-[#226597]'
+                                          : 'text-[#113F67] dark:text-slate-200 hover:bg-[#F3F9FB] dark:hover:bg-[#111c33] font-semibold'
+                                      }`}
+                                    >
+                                      <div className="flex flex-col space-y-0.5 min-w-0 pr-2">
+                                        <span className="font-mono text-xs font-bold text-[#113F67] dark:text-slate-100 truncate">
+                                          {m.base_template}
+                                        </span>
+                                        {m.motor_type && (
+                                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                                            {m.motor_type} {m.frame_size ? `(${m.frame_size})` : ''}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </button>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {activeVariantId && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteVariant(activeVariantId)}
+                          className="px-3 py-2.5 text-xs font-bold bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 rounded-xl transition flex items-center space-x-1 cursor-pointer shrink-0"
+                          title="Delete active length setup"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span>Delete</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Step 2: Available Lengths Strip for Selected Model */}
+                    {selectedModelKey && (
+                      <div className="p-3 bg-[#E4F1F5]/40 dark:bg-[#152238]/60 border border-[#87C0CD]/30 dark:border-[#233554] rounded-xl space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px] font-extrabold text-[#113F67] dark:text-slate-200 uppercase tracking-wider">
+                            2. Saved Lengths for this Model ({availableVariantsForModel.length})
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                            Click length to edit setup
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {availableVariantsForModel.map((v) => {
+                            const vLen = getVariantLength(v);
+                            const isSelected = String(v.id) === String(activeVariantId);
+                            return (
+                              <button
+                                key={v.id}
+                                type="button"
+                                onClick={() => loadVariantIntoForm(v)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer flex items-center space-x-1.5 ${
+                                  isSelected
+                                    ? 'bg-[#226597] text-white border-[#226597] shadow-xs scale-105'
+                                    : 'bg-white dark:bg-[#1e2e4a] text-[#113F67] dark:text-slate-200 border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#E4F1F5]'
+                                }`}
+                              >
+                                <span>{vLen}m</span>
+                                <span className={`text-[10px] font-mono ${isSelected ? 'text-sky-200' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                  ₹{Number(v.selling_price || 0).toLocaleString('en-IN')}
+                                </span>
+                              </button>
+                            );
+                          })}
+
+                          <button
+                            type="button"
+                            onClick={handleAddDifferentLength}
+                            className="px-2.5 py-1.5 bg-white dark:bg-[#1e2e4a] border border-dashed border-[#226597] text-[#226597] dark:text-[#38bdf8] text-xs font-bold rounded-lg hover:bg-[#E4F1F5] dark:hover:bg-[#152238] transition flex items-center space-x-1 cursor-pointer"
+                            title="Add a new length variant with same specs"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Add Length</span>
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
                 ) : (
-                  <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl text-[11px] text-amber-800 dark:text-amber-200 font-medium">
-                    No saved variants yet for this product. Enter your specs below and click <strong>Save Variant Setup</strong> to create one!
-                  </div>
+                  <p className="text-xs text-slate-500 italic">No saved part codes for this product yet.</p>
                 )}
               </div>
 
@@ -1006,16 +1176,37 @@ export function CableCalculator() {
                       min="0.5"
                       placeholder="e.g. 5"
                       value={params.default_length}
-                      onChange={(e) => setParams({ ...params, default_length: e.target.value })}
+                      onChange={(e) => {
+                        const lenVal = parseFloat(e.target.value) || 1;
+                        let updatedPartCode = params.part_code;
+                        if (!activeVariantId && params.part_code) {
+                          updatedPartCode = formatPartCodeWithLength(params.part_code, lenVal);
+                        }
+                        setParams((prev) => ({
+                          ...prev,
+                          default_length: lenVal,
+                          part_code: updatedPartCode,
+                        }));
+                      }}
                       className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
                     />
                     <div className="flex flex-wrap gap-1.5 mt-2">
-                      {[3, 5, 10, 15, 20, 25, 30].map((len) => (
+                      {[1, 2, 3, 5, 8, 10, 15, 18, 20, 25, 30].map((len) => (
                         <button
                           key={len}
                           type="button"
-                          onClick={() => setParams({ ...params, default_length: len })}
-                          className={`px-2.5 py-1 text-[10px] font-bold rounded-md border transition ${
+                          onClick={() => {
+                            let updatedPartCode = params.part_code;
+                            if (!activeVariantId && params.part_code) {
+                              updatedPartCode = formatPartCodeWithLength(params.part_code, len);
+                            }
+                            setParams((prev) => ({
+                              ...prev,
+                              default_length: len,
+                              part_code: updatedPartCode,
+                            }));
+                          }}
+                          className={`px-2.5 py-1 text-[10px] font-bold rounded-md border transition cursor-pointer ${
                             Number(params.default_length) === len
                               ? 'bg-[#226597] text-white border-[#226597]'
                               : 'bg-white dark:bg-[#152238] text-[#113F67] dark:text-slate-200 border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#E4F1F5]'
@@ -1430,12 +1621,17 @@ export function CableCalculator() {
               <button
                 type="button"
                 onClick={handleExportToExcel}
-                className="px-3.5 py-1.5 bg-[#226597] hover:bg-[#113F67] text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
-                title={`Export ${filteredConfigurations.length} ${filterProductName !== 'ALL' || filterPartCode !== 'ALL' ? 'filtered' : 'all'} record(s) to Excel`}
+                disabled={exportingExcel}
+                className="px-3.5 py-1.5 bg-[#226597] hover:bg-[#113F67] disabled:opacity-50 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                title={`Export ${filteredConfigurations.length} ${filterProductName !== 'ALL' || filterPartCode !== 'ALL' ? 'filtered' : 'all'} record(s) to Excel with embedded visual images`}
               >
-                <Download className="w-3.5 h-3.5" />
+                {exportingExcel ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
                 <span>
-                  Export Excel ({filteredConfigurations.length})
+                  {exportingExcel ? 'Generating...' : `Export Excel (${filteredConfigurations.length})`}
                 </span>
               </button>
 
@@ -1465,7 +1661,7 @@ export function CableCalculator() {
                 </div>
                 <button
                   onClick={() => setShowImportGuide(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                 >
                   ✕
                 </button>
@@ -1514,6 +1710,28 @@ export function CableCalculator() {
                       <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">margin_percentage</code>: Profit margin % (Default: <span className="font-bold">35%</span>).
                     </li>
                   </ul>
+                </div>
+
+                {/* 3. Image Instructions Guide Card */}
+                <div className="p-3.5 bg-white dark:bg-[#152238] border border-amber-200 dark:border-amber-900/50 rounded-lg space-y-2 md:col-span-2">
+                  <span className="font-extrabold text-amber-700 dark:text-amber-400 flex items-center space-x-1.5 text-xs">
+                    <ImageIcon className="w-4 h-4" />
+                    <span>HOW TO ATTACH VARIANT IMAGES IN EXCEL (2 EASY METHODS)</span>
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-700 dark:text-slate-300">
+                    <div className="p-3 bg-amber-50/60 dark:bg-amber-950/30 rounded-lg border border-amber-200/60 dark:border-amber-800/40 space-y-1">
+                      <span className="font-bold text-[#113F67] dark:text-[#f8fafc] block text-xs">Method 1: Paste Picture Files Directly into Rows</span>
+                      <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+                        In Microsoft Excel or Google Sheets, simply <strong className="text-[#226597] dark:text-[#38bdf8]">Insert / Paste picture files</strong> directly into the table row of that Part Code. The import engine automatically extracts, optimizes, and links them to the variant!
+                      </p>
+                    </div>
+                    <div className="p-3 bg-sky-50/60 dark:bg-sky-950/30 rounded-lg border border-sky-200/60 dark:border-sky-800/40 space-y-1">
+                      <span className="font-bold text-[#113F67] dark:text-[#f8fafc] block text-xs">Method 2: Use the "images" Column for URLs</span>
+                      <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+                        Add direct image URLs in the <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold">images</code> column. For multiple photos for one variant, separate links with a comma (e.g. <code className="font-mono text-[10px]">url1.jpg, url2.jpg</code>).
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1801,6 +2019,7 @@ export function CableCalculator() {
                       <tr>
                         <th className="px-3 py-2">Part Code</th>
                         <th className="px-3 py-2">Product</th>
+                        <th className="px-3 py-2 text-center">Images</th>
                         <th className="px-3 py-2 text-right">Landing Cost Diff</th>
                         <th className="px-3 py-2 text-right">Final Selling Price Diff</th>
                       </tr>
@@ -1810,6 +2029,15 @@ export function CableCalculator() {
                         <tr key={idx} className="hover:bg-[#F3F9FB]/60 dark:hover:bg-[#1e2e4a]">
                           <td className="px-3 py-2 font-mono font-bold text-[#226597] dark:text-[#38bdf8]">{u.part_code}</td>
                           <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-300">{u.product_name}</td>
+                          <td className="px-3 py-2 text-center">
+                            {u.image_count > 0 ? (
+                              <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-md font-bold text-[10px]">
+                                📷 {u.image_count}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">—</span>
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-right font-mono text-slate-600 dark:text-slate-400">
                             <span className="line-through text-slate-400">₹{u.old_landing_cost}</span> ➔{' '}
                             <span className="font-bold text-[#113F67] dark:text-white">₹{u.new_landing_cost}</span>

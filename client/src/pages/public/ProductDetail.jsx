@@ -133,6 +133,107 @@ function renderApplications(appsText) {
   );
 }
 
+// Universal Multi-OEM Part Code Length Formatter
+function formatPartCodeWithLength(basePartCode, length) {
+  if (!basePartCode) return '';
+  const lenNum = Number(length) || 5;
+  const decimalSuffix = lenNum < 10 ? `0${lenNum.toFixed(1)}` : `${lenNum.toFixed(1)}`;
+  const meterSuffix = `${lenNum}M`;
+
+  let result = String(basePartCode).trim();
+
+  // 1. Infix or Suffix "(\d+|xx)M" (e.g. Mitsubishi MR-J3ENSCBL5M-L -> MR-J3ENSCBL20M-L)
+  if (/(\d+|xx)M/i.test(result)) {
+    return result.replace(/(\d+|xx)M/gi, meterSuffix);
+  }
+
+  // 2. Infix or Suffix "xx.x" (e.g. Innovance S6-L-B107-xx.x -> S6-L-B107-20.0)
+  if (/xx\.x/i.test(result)) {
+    return result.replace(/xx\.x/gi, decimalSuffix);
+  }
+
+  // 3. Trailing Decimal like "-05.0" (e.g. S6-L-B107-05.0 -> S6-L-B107-20.0)
+  if (/-\d{1,2}\.\d+$/.test(result)) {
+    return result.replace(/-\d{1,2}\.\d+$/, `-${decimalSuffix}`);
+  }
+
+  // 4. Trailing Dash (e.g. S6-L-B107- -> S6-L-B107-20.0)
+  if (result.endsWith('-')) {
+    return `${result}${decimalSuffix}`;
+  }
+
+  // 5. Trailing Integer like "-5" (e.g. CBL-5 -> CBL-20)
+  if (/-\d+$/.test(result)) {
+    return result.replace(/-\d+$/, `-${lenNum}`);
+  }
+
+  return `${result}-${meterSuffix}`;
+}
+
+// Dynamic Price Calculator based on Cable Cost, Connectors, Labour, Margin & Custom Length
+function calculateDynamicVariantPrice(variant, length) {
+  if (!variant) return null;
+  const len = Number(length) || Number(variant.default_length) || 5;
+  const cableCost = (Number(variant.cable_cost_per_meter) || 0) * len;
+  const c1 = Number(variant.connector1_cost) || 0;
+  const c2 = Number(variant.connector2_cost) || 0;
+  const labour = Number(variant.labour_cost) !== undefined ? Number(variant.labour_cost) : 150;
+  const battery = Number(variant.battery_cost) || 0;
+  let extra = 0;
+  if (Array.isArray(variant.additional_components)) {
+    extra = variant.additional_components.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
+  }
+  const landing = Math.round(cableCost + c1 + c2 + labour + battery + extra);
+  const margin = Number(variant.margin_percentage) !== undefined ? Number(variant.margin_percentage) : 35;
+  return Math.round(landing * (1 + margin / 100));
+}
+
+// Function to compute canonical base model template (e.g. S6-L-B107-20.0 -> S6-L-B107-xx.x, MR-J3ENSCBL5M-L -> MR-J3ENSCBLxxM-L)
+function getBasePartCodeTemplate(partCode) {
+  if (!partCode) return '';
+  let str = String(partCode).trim();
+
+  // 1. Infix meter pattern like MR-J3ENSCBL5M-L -> MR-J3ENSCBLxxM-L
+  if (/(\d+|xx)M/i.test(str)) {
+    return str.replace(/(\d+|xx)M/gi, 'xxM');
+  }
+
+  // 2. Trailing decimal length like S6-L-B107-20.0 or S6-L-B107-05.0 -> S6-L-B107-xx.x
+  if (/-\d{1,2}\.\d+$/.test(str)) {
+    return str.replace(/-\d{1,2}\.\d+$/, '-xx.x');
+  }
+
+  // 3. Already contains xx.x
+  if (/xx\.x/i.test(str)) {
+    return str;
+  }
+
+  // 4. Trailing dash like S6-L-B107- -> S6-L-B107-xx.x
+  if (str.endsWith('-')) {
+    return `${str}xx.x`;
+  }
+
+  // 5. Trailing integer length like CBL-5 -> CBL-xxM
+  if (/-\d+$/.test(str)) {
+    return str.replace(/-\d+$/, '-xxM');
+  }
+
+  return str;
+}
+
+function getVariantLength(variant) {
+  if (!variant) return 5;
+  if (variant.default_length !== undefined && variant.default_length !== null && !isNaN(Number(variant.default_length))) {
+    return Number(variant.default_length);
+  }
+  const pc = String(variant.part_code || '');
+  const mMatch = pc.match(/(\d+)M/i);
+  if (mMatch) return Number(mMatch[1]);
+  const decMatch = pc.match(/-(\d{1,2})\.\d+/);
+  if (decMatch) return Number(decMatch[1]);
+  return 5;
+}
+
 export function ProductDetail() {
   const { slug } = useParams();
   const [product, setProduct] = useState(null);
@@ -141,7 +242,9 @@ export function ProductDetail() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [selectedModelKey, setSelectedModelKey] = useState('');
   const [selectedVariantId, setSelectedVariantId] = useState('');
+  const [selectedLength, setSelectedLength] = useState(5);
 
   useEffect(() => {
     async function fetchProduct() {
@@ -151,7 +254,11 @@ export function ProductDetail() {
         if (res.success && res.data) {
           setProduct(res.data);
           if (Array.isArray(res.data.part_code_variants) && res.data.part_code_variants.length > 0) {
-            setSelectedVariantId(String(res.data.part_code_variants[0].id));
+            const firstV = res.data.part_code_variants[0];
+            const baseKey = `${getBasePartCodeTemplate(firstV.part_code)}__${firstV.motor_type || ''}__${firstV.frame_size || ''}`.toLowerCase();
+            setSelectedModelKey(baseKey);
+            setSelectedVariantId(String(firstV.id));
+            setSelectedLength(getVariantLength(firstV));
           }
         }
       } catch (err) {
@@ -191,20 +298,87 @@ export function ProductDetail() {
   }
 
   const variants = Array.isArray(product.part_code_variants) ? product.part_code_variants : [];
+
+  // Group variants into distinct base models (e.g. B107-xx.x and M107-xx.x only)
+  const distinctModelVariants = [];
+  const seenBaseTemplates = new Set();
+
+  variants.forEach((v) => {
+    const baseTemplate = getBasePartCodeTemplate(v.part_code);
+    const groupKey = `${baseTemplate}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
+    if (!seenBaseTemplates.has(groupKey)) {
+      seenBaseTemplates.add(groupKey);
+      distinctModelVariants.push({
+        ...v,
+        base_template: baseTemplate,
+        model_group_key: groupKey,
+      });
+    }
+  });
+
   const selectedVariant = variants.find((v) => String(v.id) === String(selectedVariantId)) || null;
+
+  // Filter and sort available length variants for the currently selected model
+  const availableVariantsForModel = variants.filter((v) => {
+    const t = getBasePartCodeTemplate(v.part_code);
+    const key = `${t}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
+    return key === selectedModelKey;
+  });
+
+  availableVariantsForModel.sort((a, b) => getVariantLength(a) - getVariantLength(b));
+
+  const lenNumber = Number(selectedLength) || 5;
+
+  const dynamicPartCode = selectedVariant
+    ? formatPartCodeWithLength(selectedVariant.part_code, lenNumber)
+    : '';
+
+  // Check if active selectedLength matches an existing variant record with an exact calculated_price
+  const matchingSavedVariant = availableVariantsForModel.find(
+    (v) => getVariantLength(v) === lenNumber
+  );
+
+  const dynamicPrice = selectedVariant
+    ? (matchingSavedVariant && matchingSavedVariant.calculated_price !== undefined && matchingSavedVariant.calculated_price !== null
+        ? Number(matchingSavedVariant.calculated_price)
+        : calculateDynamicVariantPrice(selectedVariant, lenNumber))
+    : product.price !== null && product.price !== undefined && product.price !== ''
+    ? Number(product.price)
+    : null;
 
   const activeVariantDetails = selectedVariant
     ? {
         product_name: product.product_name,
-        part_code: selectedVariant.part_code,
+        part_code: dynamicPartCode,
         frame_size: selectedVariant.frame_size,
         motor_type: selectedVariant.motor_type,
         cable_dimension: selectedVariant.cable_dimension,
         connectors: [selectedVariant.connector1_name, selectedVariant.connector2_name].filter(Boolean).join(' + '),
-        default_length: selectedVariant.default_length,
-        variant_price: selectedVariant.calculated_price,
+        default_length: lenNumber,
+        variant_price: dynamicPrice,
       }
     : null;
+
+  // Handler when selecting base model from dropdown
+  const handleModelSelect = (modelKey) => {
+    setSelectedModelKey(modelKey);
+    setSelectedImageIndex(0);
+    if (!modelKey) {
+      setSelectedVariantId('');
+      return;
+    }
+    const matchingVariants = variants.filter((v) => {
+      const t = getBasePartCodeTemplate(v.part_code);
+      const key = `${t}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
+      return key === modelKey;
+    });
+    if (matchingVariants.length > 0) {
+      // Pick matching variant by closest length or default 5m
+      const defaultMatch = matchingVariants.find((v) => getVariantLength(v) === 5) || matchingVariants[0];
+      setSelectedVariantId(String(defaultMatch.id));
+      setSelectedLength(getVariantLength(defaultMatch));
+    }
+  };
 
   // Extract all custom variant images (supports image_urls array or image_url string)
   const variantImages = [];
@@ -270,6 +444,10 @@ export function ProductDetail() {
   const handleVariantSelect = (variantId) => {
     setSelectedVariantId(variantId);
     setSelectedImageIndex(0); // Reset image index to show first image of selected view
+    const found = variants.find((v) => String(v.id) === String(variantId));
+    if (found && found.default_length) {
+      setSelectedLength(Number(found.default_length));
+    }
   };
 
   const handleDownloadPdf = (doc, fallbackName) => {
@@ -417,79 +595,123 @@ export function ProductDetail() {
                 )}
               </div>
 
-              {/* Variant Pricing & Selector Box */}
-              <div className="p-4 bg-[#E4F1F5]/60 border border-[#87C0CD]/40 rounded-2xl space-y-3 font-sans">
+              {/* Variant Pricing & 2-Step Selector Box */}
+              <div className="p-5 bg-[#E4F1F5]/60 border border-[#87C0CD]/40 rounded-2xl space-y-4 font-sans">
                 {variants.length > 0 && (
-                  <div>
-                    <div className="flex justify-between items-center mb-1.5">
-                      <label className="text-xs font-extrabold text-[#113F67] uppercase tracking-wider">
-                        Select Part Code & Spec Variant
-                      </label>
-                      <span className="text-[10px] font-bold text-[#226597]">
-                        {variants.length} Part Codes Available
-                      </span>
+                  <div className="space-y-3.5">
+                    {/* Step 1: Select Part Code Model / Motor Spec */}
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="text-xs font-extrabold text-[#113F67] uppercase tracking-wider">
+                          1. Select Part Code Model
+                        </label>
+                        <span className="text-[10px] font-bold text-[#226597]">
+                          {distinctModelVariants.length} Model{distinctModelVariants.length !== 1 ? 's' : ''} Available
+                        </span>
+                      </div>
+                      <select
+                        value={selectedModelKey}
+                        onChange={(e) => handleModelSelect(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-white border border-[#87C0CD]/50 rounded-xl text-xs font-bold text-[#113F67] focus:outline-none focus:border-[#226597] shadow-xs cursor-pointer"
+                      >
+                        <option value="">-- Default Catalog Product (₹{Number(product.price || 0).toLocaleString('en-IN')}) --</option>
+                        {distinctModelVariants.map((v) => (
+                          <option key={v.model_group_key} value={v.model_group_key}>
+                            {v.base_template || v.part_code} {v.motor_type ? `— ${v.motor_type}` : ''} {v.frame_size ? `(${v.frame_size})` : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                    <select
-                      value={selectedVariantId}
-                      onChange={(e) => handleVariantSelect(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-white border border-[#87C0CD]/50 rounded-xl text-xs font-bold text-[#113F67] focus:outline-none focus:border-[#226597] shadow-xs cursor-pointer"
-                    >
-                      <option value="">-- Default Price (₹{Number(product.price || 0).toLocaleString('en-IN')}) --</option>
-                      {variants.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.part_code || 'Part Code'} {v.motor_type ? `(${v.motor_type})` : ''} - ₹{v.calculated_price.toLocaleString('en-IN')}
-                        </option>
-                      ))}
-                    </select>
 
-                    {/* Active Variant Technical Specs Summary */}
+                    {/* Step 2: Choose Cable Length (Standard Pills + Custom Input) */}
                     {selectedVariant && (
-                      <div className="p-3 bg-white border border-[#87C0CD]/30 rounded-xl text-xs space-y-1.5 font-sans mt-2">
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-1">
-                          <span className="text-slate-500 text-[11px]">Selected Part Code:</span>
-                          <span className="font-mono font-bold text-[#226597]">{selectedVariant.part_code || '-'}</span>
+                      <div className="space-y-2.5 pt-3 border-t border-[#87C0CD]/30">
+                        <div className="flex justify-between items-center">
+                          <label className="text-xs font-extrabold text-[#113F67] uppercase tracking-wider">
+                            2. Choose Cable Length
+                          </label>
+                          <span className="text-xs font-mono font-extrabold text-[#226597] bg-white px-2.5 py-0.5 rounded-md border border-[#87C0CD]/40 shadow-xs">
+                            {selectedLength ? `${selectedLength} Meter${selectedLength !== 1 ? 's' : ''}` : 'Select Length'}
+                          </span>
                         </div>
-                        {selectedVariant.frame_size && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-500 text-[11px]">Frame Size:</span>
-                            <span className="font-semibold text-[#113F67]">{selectedVariant.frame_size}</span>
+
+                        {/* Standard Quick Length Pills */}
+                        {availableVariantsForModel.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {availableVariantsForModel.map((vObj) => {
+                              const vLen = getVariantLength(vObj);
+                              const isSelected = Number(selectedLength) === Number(vLen) && String(selectedVariantId) === String(vObj.id);
+                              return (
+                                <button
+                                  key={vObj.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedVariantId(String(vObj.id));
+                                    setSelectedLength(vLen);
+                                    setSelectedImageIndex(0);
+                                  }}
+                                  className={`px-3.5 py-1.5 text-xs font-bold rounded-lg border transition cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-[#226597] text-white border-[#226597] shadow-xs scale-105'
+                                      : 'bg-white text-[#113F67] border-[#87C0CD]/40 hover:bg-[#E4F1F5]'
+                                  }`}
+                                >
+                                  {vLen}m
+                                </button>
+                              );
+                            })}
                           </div>
                         )}
-                        {selectedVariant.motor_type && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-500 text-[11px]">Motor / Power Spec:</span>
-                            <span className="font-semibold text-[#113F67]">{selectedVariant.motor_type}</span>
+
+                        {/* Custom Length Input Box */}
+                        <div className="flex items-center space-x-2 pt-1">
+                          <span className="text-[11px] text-slate-500 font-semibold">Or Enter Custom Length:</span>
+                          <div className="relative flex items-center">
+                            <input
+                              type="number"
+                              min="0.5"
+                              max="200"
+                              step="0.5"
+                              placeholder="e.g. 12"
+                              value={selectedLength || ''}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? '' : parseFloat(e.target.value);
+                                setSelectedLength(val);
+                                if (val !== '' && !isNaN(val)) {
+                                  const matching = availableVariantsForModel.find((v) => getVariantLength(v) === val);
+                                  if (matching) {
+                                    setSelectedVariantId(String(matching.id));
+                                  }
+                                }
+                              }}
+                              className="w-24 px-2.5 py-1 bg-white border border-[#87C0CD]/50 rounded-lg text-xs font-bold font-mono text-[#113F67] focus:outline-none focus:border-[#226597] shadow-xs"
+                            />
+                            <span className="ml-1.5 text-xs font-bold text-slate-600">meters</span>
                           </div>
-                        )}
-                        {selectedVariant.cable_dimension && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-500 text-[11px]">Cable Dimensions:</span>
-                            <span className="font-semibold text-[#113F67]">{selectedVariant.cable_dimension}</span>
-                          </div>
-                        )}
-                        {(selectedVariant.connector1_name || selectedVariant.connector2_name) && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-500 text-[11px]">Connectors:</span>
-                            <span className="font-semibold text-[#113F67]">
-                              {[selectedVariant.connector1_name, selectedVariant.connector2_name].filter(Boolean).join(' + ')}
-                            </span>
-                          </div>
-                        )}
+                        </div>
+
+                        {/* Configured Full Part Code Badge */}
+                        <div className="p-2.5 bg-white border border-[#87C0CD]/40 rounded-xl flex items-center justify-between mt-2">
+                          <span className="text-[11px] text-slate-500 font-semibold">Configured Part Code:</span>
+                          <span className="font-mono font-extrabold text-xs text-[#226597] tracking-wide">
+                            {dynamicPartCode || selectedVariant.part_code}
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
                 )}
 
                 {/* Dynamic Price Display */}
-                {displayPrice !== null && (
-                  <div className="mt-3 flex items-baseline space-x-2.5">
+                {dynamicPrice !== null && (
+                  <div className="pt-2 flex items-baseline space-x-2.5 border-t border-[#87C0CD]/30">
                     <span className="text-3xl font-extrabold text-[#113F67] font-display">
-                      ₹{displayPrice.toLocaleString('en-IN')}
+                      ₹{dynamicPrice.toLocaleString('en-IN')}
                     </span>
                     <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">/ Piece</span>
                     {selectedVariant && (
                       <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 uppercase tracking-wider">
-                        Variant Price
+                        {matchingSavedVariant ? `${lenNumber}m Standard Price` : `${lenNumber}m Custom Price`}
                       </span>
                     )}
                   </div>

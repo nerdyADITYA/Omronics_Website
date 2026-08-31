@@ -4,20 +4,36 @@ let transporter = null;
 
 function getTransporter() {
   if (!transporter) {
-    console.log(`[SMTP INIT] Initializing Nodemailer for local/custom SMTP...`);
-    transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.EMAIL_PORT || '465', 10),
-      secure: true,
+    const host = process.env.EMAIL_HOST || 'smtp.gmail.com';
+    const port = parseInt(process.env.EMAIL_PORT || '587', 10);
+    const isSecure = process.env.EMAIL_SECURE !== undefined 
+      ? process.env.EMAIL_SECURE === 'true' 
+      : port === 465;
+
+    console.log(`[SMTP INIT] Initializing Nodemailer for ${host}:${port} (secure: ${isSecure})...`);
+
+    const transportConfig = {
+      host: host,
+      port: port,
+      secure: isSecure,
       family: 4,
       connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 10000,
       auth: {
         user: process.env.EMAIL_USERNAME,
-        pass: process.env.EMAIL_PASSWORD,
+        pass: process.env.EMAIL_PASSWORD ? process.env.EMAIL_PASSWORD.replace(/\s+/g, '') : '',
       },
-    });
+      tls: {
+        rejectUnauthorized: false,
+      },
+    };
+
+    if (host.includes('gmail.com') || process.env.EMAIL_SERVICE === 'gmail') {
+      transportConfig.service = 'gmail';
+    }
+
+    transporter = nodemailer.createTransport(transportConfig);
   }
   return transporter;
 }

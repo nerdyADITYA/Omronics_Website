@@ -8,6 +8,7 @@ import {
   deleteConfiguration,
   syncSellingPrice,
   downloadSampleTemplate,
+  exportExcel,
   analyzeImport,
   executeImport,
 } from '../controllers/cableCost.controller.js';
@@ -22,6 +23,7 @@ router.use(verifyToken);
 router.get('/servo-products', getServoProducts);
 router.get('/', getAllConfigurations);
 router.get('/download-template', downloadSampleTemplate);
+router.post('/export-excel', exportExcel);
 router.get('/product/:productId', getByProductId);
 router.post('/', saveConfiguration);
 router.delete('/:id', deleteConfiguration);

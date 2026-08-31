@@ -69,6 +69,18 @@ export async function downloadSampleTemplate(req, res) {
   }
 }
 
+export async function exportExcel(req, res) {
+  try {
+    const { configurations = [] } = req.body;
+    const buffer = await cableCostService.generateVisualExcelExport(configurations);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="servo_cables_export.xlsx"');
+    return res.send(buffer);
+  } catch (err) {
+    return sendError(res, err.message || 'Failed to export visual Excel spreadsheet.', 500);
+  }
+}
+
 export async function analyzeImport(req, res) {
   try {
     if (!req.file) {

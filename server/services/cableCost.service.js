@@ -2,6 +2,90 @@ import { cableCostRepository } from '../repositories/cableCost.repository.js';
 import { query } from '../config/database.js';
 import { AppError } from '../middlewares/error.middleware.js';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
+import sharp from 'sharp';
+import path from 'path';
+import fs from 'fs';
+
+/**
+ * Helper to extract embedded picture images from an uploaded .xlsx buffer
+ * Maps 1-indexed Excel data row numbers to array of saved image URLs
+ */
+async function extractEmbeddedImagesFromXlsx(fileBuffer) {
+  const rowImageMap = new Map();
+  try {
+    const zip = await JSZip.loadAsync(fileBuffer);
+
+    // Look for drawing XML and relationship files
+    const drawingFiles = zip.file(/^xl\/drawings\/drawing\d+\.xml$/i);
+    const relsFiles = zip.file(/^xl\/drawings\/_rels\/drawing\d+\.xml\.rels$/i);
+
+    if (!drawingFiles || drawingFiles.length === 0 || !relsFiles || relsFiles.length === 0) {
+      return rowImageMap;
+    }
+
+    const drawingXml = await drawingFiles[0].async('string');
+    const relsXml = await relsFiles[0].async('string');
+
+    // Parse relationship IDs: rIdX -> media path
+    const relsMap = new Map();
+    const relRegex = /<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/gi;
+    let relMatch;
+    while ((relMatch = relRegex.exec(relsXml)) !== null) {
+      const target = relMatch[2].replace('../', 'xl/');
+      relsMap.set(relMatch[1], target);
+    }
+
+    // Ensure uploads directory exists
+    const uploadsDir = path.join(process.cwd(), 'server', 'uploads', 'images');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    // Match twoCellAnchor and oneCellAnchor blocks
+    const anchorRegex = /<xdr:(?:twoCellAnchor|oneCellAnchor)[^>]*>([\s\S]*?)<\/xdr:(?:twoCellAnchor|oneCellAnchor)>/gi;
+    let anchorMatch;
+
+    while ((anchorMatch = anchorRegex.exec(drawingXml)) !== null) {
+      const anchorBlock = anchorMatch[1];
+      const fromRowMatch = /<xdr:from>[\s\S]*?<xdr:row>(\d+)<\/xdr:row>/i.exec(anchorBlock);
+      const blipMatch = /<a:blip[^>]*r:embed="([^"]+)"/i.exec(anchorBlock);
+
+      if (fromRowMatch && blipMatch) {
+        const zeroIndexedRow = parseInt(fromRowMatch[1], 10);
+        const rId = blipMatch[1];
+        const mediaPath = relsMap.get(rId);
+
+        if (mediaPath && zip.file(mediaPath)) {
+          const imgBuffer = await zip.file(mediaPath).async('nodebuffer');
+          if (imgBuffer && imgBuffer.length > 0) {
+            const filename = `variant_excel_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
+            const filepath = path.join(uploadsDir, filename);
+
+            try {
+              await sharp(imgBuffer).webp({ quality: 85 }).toFile(filepath);
+              const publicUrl = `/uploads/images/${filename}`;
+
+              // zeroIndexedRow 0 is header row, 1 is row 2 (first data row)
+              const excelRowNum = zeroIndexedRow + 1;
+
+              if (!rowImageMap.has(excelRowNum)) {
+                rowImageMap.set(excelRowNum, []);
+              }
+              rowImageMap.get(excelRowNum).push(publicUrl);
+            } catch (sharpErr) {
+              console.warn('Could not optimize embedded image with sharp:', sharpErr.message);
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Could not extract embedded images from xlsx zip archive:', err.message);
+  }
+  return rowImageMap;
+}
 
 export class CableCostService {
   /**
@@ -17,7 +101,6 @@ export class CableCostService {
     `;
     const rows = await query(sql);
     if (rows.length === 0) {
-      // Fallback: fetch all active products if no specific Servo Cables category exists yet
       const fallbackSql = `SELECT id, product_name, model_number, price as current_price FROM products WHERE deleted_at IS NULL ORDER BY product_name ASC`;
       return query(fallbackSql);
     }
@@ -78,6 +161,7 @@ export class CableCostService {
         battery_cost: 0,
         margin_percentage: 35,
         additional_components: '',
+        images: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c',
       },
       {
         product_name: 'INNOVANCE',
@@ -96,24 +180,7 @@ export class CableCostService {
         battery_cost: 0,
         margin_percentage: 50,
         additional_components: '',
-      },
-      {
-        product_name: 'MITSUBISHI SERVO CABLES',
-        part_code: 'MR-J3ENCBL5M-A2-L',
-        frame_size: '',
-        motor_type: '200W TO 750W',
-        default_length: 5,
-        cable_dimension: '3X2X0.20SQMM SHD',
-        cable_cost_per_meter: 100,
-        connector1_name: 'USB-10 PIN',
-        connector1_cost: 100,
-        connector2_name: 'MC9S-A1',
-        connector2_cost: 350,
-        labour_cost: 150,
-        battery_name: '',
-        battery_cost: 0,
-        margin_percentage: 50,
-        additional_components: '',
+        images: '',
       },
     ];
 
@@ -121,7 +188,6 @@ export class CableCostService {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Servo Cable Import');
 
-    // Auto column widths
     worksheet['!cols'] = [
       { wch: 24 }, // product_name
       { wch: 22 }, // part_code
@@ -139,9 +205,151 @@ export class CableCostService {
       { wch: 14 }, // battery_cost
       { wch: 18 }, // margin_percentage
       { wch: 24 }, // additional_components
+      { wch: 40 }, // images
     ];
 
     return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  }
+
+  /**
+   * Generate visual Excel export with embedded picture images
+   */
+  async generateVisualExcelExport(configurations = []) {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Servo Cable Setups');
+
+    worksheet.columns = [
+      { header: 'Variant Image', key: 'image', width: 16 },
+      { header: 'Product Name', key: 'product_name', width: 24 },
+      { header: 'Part Code', key: 'part_code', width: 24 },
+      { header: 'Frame Size', key: 'frame_size', width: 24 },
+      { header: 'Motor / Power Spec', key: 'motor_type', width: 32 },
+      { header: 'Default Length (m)', key: 'default_length', width: 18 },
+      { header: 'Cable Dimension', key: 'cable_dimension', width: 22 },
+      { header: 'Cable Cost / Meter (₹)', key: 'cable_cost_per_meter', width: 22 },
+      { header: 'Connector 1 Name', key: 'connector1_name', width: 22 },
+      { header: 'Connector 1 Cost (₹)', key: 'connector1_cost', width: 20 },
+      { header: 'Connector 2 Name', key: 'connector2_name', width: 22 },
+      { header: 'Connector 2 Cost (₹)', key: 'connector2_cost', width: 20 },
+      { header: 'Labour Cost (₹)', key: 'labour_cost', width: 16 },
+      { header: 'Battery Name', key: 'battery_name', width: 16 },
+      { header: 'Battery Cost (₹)', key: 'battery_cost', width: 16 },
+      { header: 'Profit Margin %', key: 'margin_percentage', width: 16 },
+      { header: 'Additional Components', key: 'additional_components', width: 28 },
+      { header: 'Landing Cost (₹)', key: 'landing_cost', width: 18 },
+      { header: 'Final Selling Price (₹)', key: 'selling_price', width: 20 },
+      { header: 'Image URLs (Links)', key: 'images_text', width: 35 },
+    ];
+
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF113F67' },
+    };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    headerRow.height = 28;
+
+    for (let i = 0; i < configurations.length; i++) {
+      const c = configurations[i];
+      const rowIdx = i + 2;
+
+      const len = Number(c.default_length) || 5;
+      const cCost = Number(c.cable_cost_per_meter) || 0;
+      const c1 = Number(c.connector1_cost) || 0;
+      const c2 = Number(c.connector2_cost) || 0;
+      const labour = Number(c.labour_cost) !== undefined ? Number(c.labour_cost) : 150;
+      const battery = Number(c.battery_cost) || 0;
+      const extra = Array.isArray(c.additional_components)
+        ? c.additional_components.reduce((sum, item) => sum + (Number(item.cost) || 0), 0)
+        : 0;
+      const computedLanding = Math.round(len * cCost + c1 + c2 + labour + battery + extra);
+      const landingVal = c.landing_cost ? Math.round(Number(c.landing_cost)) : computedLanding;
+      const sellingVal = c.selling_price ? Math.round(Number(c.selling_price)) : Math.round(landingVal * (1 + (Number(c.margin_percentage) || 35) / 100));
+
+      let imgList = [];
+      if (Array.isArray(c.image_urls) && c.image_urls.length > 0) {
+        imgList = c.image_urls;
+      } else if (c.image_url) {
+        try {
+          const parsed = JSON.parse(c.image_url);
+          if (Array.isArray(parsed)) imgList = parsed;
+          else imgList = [c.image_url];
+        } catch (e) {
+          imgList = [c.image_url];
+        }
+      }
+
+      const row = worksheet.addRow({
+        image: '',
+        product_name: c.product_name || '',
+        part_code: c.part_code || '',
+        frame_size: c.frame_size || '',
+        motor_type: c.motor_type || '',
+        default_length: len,
+        cable_dimension: c.cable_dimension || '',
+        cable_cost_per_meter: cCost,
+        connector1_name: c.connector1_name || '',
+        connector1_cost: c1,
+        connector2_name: c.connector2_name || '',
+        connector2_cost: c2,
+        labour_cost: labour,
+        battery_name: c.battery_name || '',
+        battery_cost: battery,
+        margin_percentage: Number(c.margin_percentage) || 35,
+        additional_components: Array.isArray(c.additional_components) ? JSON.stringify(c.additional_components) : '',
+        landing_cost: landingVal,
+        selling_price: sellingVal,
+        images_text: imgList.length > 0 ? (imgList.length === 1 ? imgList[0] : JSON.stringify(imgList)) : '',
+      });
+
+      row.alignment = { vertical: 'middle', horizontal: 'left' };
+      row.height = 55;
+
+      if (imgList.length > 0) {
+        const firstImg = imgList[0];
+        let imageBuffer = null;
+
+        try {
+          if (firstImg.startsWith('data:image')) {
+            const matches = firstImg.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+            if (matches) {
+              imageBuffer = Buffer.from(matches[2], 'base64');
+            }
+          } else if (firstImg.startsWith('/uploads/')) {
+            const localPath = path.join(process.cwd(), 'server', firstImg);
+            if (fs.existsSync(localPath)) {
+              imageBuffer = fs.readFileSync(localPath);
+            }
+          } else if (firstImg.startsWith('http')) {
+            const res = await fetch(firstImg);
+            if (res.ok) {
+              const arrayBuffer = await res.arrayBuffer();
+              imageBuffer = Buffer.from(arrayBuffer);
+            }
+          }
+
+          if (imageBuffer) {
+            const pngBuffer = await sharp(imageBuffer).png().toBuffer();
+            const imageId = workbook.addImage({
+              buffer: pngBuffer,
+              extension: 'png',
+            });
+
+            worksheet.addImage(imageId, {
+              tl: { col: 0.1, row: rowIdx - 1 + 0.1 },
+              ext: { width: 70, height: 50 },
+              editAs: 'oneCell',
+            });
+          }
+        } catch (imgErr) {
+          console.warn(`Could not embed visual picture for row ${rowIdx}:`, imgErr.message);
+        }
+      }
+    }
+
+    return workbook.xlsx.writeBuffer();
   }
 
   /**
@@ -151,6 +359,9 @@ export class CableCostService {
     if (!fileBuffer) {
       throw new AppError('Excel file is required.', 400);
     }
+
+    // Extract embedded pictures if user pasted images directly into Excel worksheet
+    const rowEmbeddedImages = await extractEmbeddedImagesFromXlsx(fileBuffer);
 
     const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
@@ -191,7 +402,7 @@ export class CableCostService {
 
     for (let i = 0; i < rawRows.length; i++) {
       const row = rawRows[i];
-      const rowNum = i + 2; // 1-indexed header is row 1
+      const rowNum = i + 2; // 1-indexed header is row 1, data starts at row 2
 
       // Standardize column key names (trim whitespace & lowercase keys)
       const normalized = {};
@@ -250,6 +461,36 @@ export class CableCostService {
       const profit = (marginPct / 100) * landingCost;
       const sellingPrice = Math.round(landingCost + profit);
 
+      // Parse images from URLs / links column
+      const parsedImages = [];
+      const rawImagesCol = normalized.images || normalized.image || normalized.image_url || normalized.image_urls || normalized.images_text || '';
+      if (rawImagesCol) {
+        if (rawImagesCol.startsWith('[')) {
+          try {
+            const arr = JSON.parse(rawImagesCol);
+            if (Array.isArray(arr)) parsedImages.push(...arr);
+            else parsedImages.push(rawImagesCol);
+          } catch (e) {
+            parsedImages.push(rawImagesCol);
+          }
+        } else {
+          rawImagesCol.split(/[,;\n]+/).forEach((img) => {
+            const clean = img.trim();
+            if (clean) parsedImages.push(clean);
+          });
+        }
+      }
+
+      // Merge any embedded picture files pasted directly into this Excel row
+      if (rowEmbeddedImages.has(rowNum)) {
+        const embeddedList = rowEmbeddedImages.get(rowNum);
+        embeddedList.forEach((embUrl) => {
+          if (!parsedImages.includes(embUrl)) {
+            parsedImages.push(embUrl);
+          }
+        });
+      }
+
       const parsedPayload = {
         product_id: productId,
         product_name: productName,
@@ -270,6 +511,7 @@ export class CableCostService {
         additional_components: additionalComponents,
         landing_cost: landingCost,
         selling_price: sellingPrice,
+        image_urls: parsedImages,
       };
 
       const existingRecord = existingMap.get(partCode.toLowerCase());
@@ -277,12 +519,17 @@ export class CableCostService {
       if (!existingRecord) {
         toInsert.push(parsedPayload);
       } else {
-        // Record exists: check if values changed
         parsedPayload.id = existingRecord.id;
+        // If no new images provided in Excel, preserve existing variant images
+        if (parsedImages.length === 0 && existingRecord.image_urls && existingRecord.image_urls.length > 0) {
+          parsedPayload.image_urls = existingRecord.image_urls;
+        }
+
         const oldLanding = Math.round(Number(existingRecord.landing_cost) || 0);
         const oldSelling = Math.round(Number(existingRecord.selling_price) || 0);
+        const hasNewImages = parsedImages.length > 0;
 
-        if (oldSelling !== sellingPrice || oldLanding !== landingCost) {
+        if (oldSelling !== sellingPrice || oldLanding !== landingCost || hasNewImages) {
           toUpdate.push({
             id: existingRecord.id,
             product_name: productName,
@@ -291,6 +538,7 @@ export class CableCostService {
             new_landing_cost: landingCost,
             old_selling_price: oldSelling,
             new_selling_price: sellingPrice,
+            image_count: parsedPayload.image_urls.length,
             payload: parsedPayload,
           });
         } else {
