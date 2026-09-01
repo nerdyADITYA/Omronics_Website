@@ -137,11 +137,31 @@ export class ProductRepository extends BaseRepository {
       params.push(featured === 'true' || featured === true ? 1 : 0);
     }
 
-    if (search && this.searchFields.length > 0) {
-      const searchOrs = this.searchFields.map((field) => `p.${field} LIKE ?`).join(' OR ');
-      whereClauses.push(`(${searchOrs})`);
+    if (search) {
       const searchPattern = `%${search}%`;
-      this.searchFields.forEach(() => params.push(searchPattern));
+      const searchOrClauses = [];
+
+      if (this.searchFields.length > 0) {
+        this.searchFields.forEach((field) => {
+          searchOrClauses.push(`p.${field} LIKE ?`);
+          params.push(searchPattern);
+        });
+      }
+
+      // Also search across variant configurations in product_cable_costs (part_code, motor_type, frame_size, cable_dimension)
+      searchOrClauses.push(`EXISTS (
+        SELECT 1 FROM product_cable_costs pcc 
+        WHERE pcc.product_id = p.id 
+          AND (
+            pcc.part_code LIKE ? 
+            OR pcc.motor_type LIKE ? 
+            OR pcc.frame_size LIKE ? 
+            OR pcc.cable_dimension LIKE ?
+          )
+      )`);
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern);
+
+      whereClauses.push(`(${searchOrClauses.join(' OR ')})`);
     }
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link as RouterLink } from 'react-router-dom';
+import { useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Cpu, FileText, Download, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, X, Video } from 'lucide-react';
 import { Header } from '../../components/common/Header';
 import { Footer } from '../../components/common/Footer';
@@ -277,6 +277,7 @@ function getVariantLength(variant) {
 
 export function ProductDetail() {
   const { slug } = useParams();
+  const [searchParams] = useSearchParams();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
@@ -295,11 +296,20 @@ export function ProductDetail() {
         if (res.success && res.data) {
           setProduct(res.data);
           if (Array.isArray(res.data.part_code_variants) && res.data.part_code_variants.length > 0) {
-            const firstV = res.data.part_code_variants[0];
-            const baseKey = `${getBasePartCodeTemplate(firstV.part_code)}__${firstV.motor_type || ''}__${firstV.frame_size || ''}`.toLowerCase();
+            const queryParam = (searchParams.get('partcode') || searchParams.get('search') || '').trim().toLowerCase();
+            let matchedV = null;
+            if (queryParam) {
+              matchedV = res.data.part_code_variants.find(
+                (v) => (v.part_code && v.part_code.toLowerCase().includes(queryParam)) ||
+                       (v.motor_type && v.motor_type.toLowerCase().includes(queryParam)) ||
+                       (v.frame_size && v.frame_size.toLowerCase().includes(queryParam))
+              );
+            }
+            const activeV = matchedV || res.data.part_code_variants[0];
+            const baseKey = `${getBasePartCodeTemplate(activeV.part_code)}__${activeV.motor_type || ''}__${activeV.frame_size || ''}`.toLowerCase();
             setSelectedModelKey(baseKey);
-            setSelectedVariantId(String(firstV.id));
-            setSelectedLength(getVariantLength(firstV));
+            setSelectedVariantId(String(activeV.id));
+            setSelectedLength(getVariantLength(activeV));
           }
         }
       } catch (err) {
@@ -309,7 +319,7 @@ export function ProductDetail() {
       }
     }
     fetchProduct();
-  }, [slug]);
+  }, [slug, searchParams]);
 
   if (loading) {
     return (

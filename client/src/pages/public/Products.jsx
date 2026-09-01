@@ -192,7 +192,7 @@ export function Products() {
 
                     <div className="p-6 pt-0 flex items-center justify-between gap-3">
                       <RouterLink
-                        to={`/products/${prod.slug}`}
+                        to={searchQuery ? `/products/${prod.slug}?search=${encodeURIComponent(searchQuery)}` : `/products/${prod.slug}`}
                         className="flex-1 text-center py-2.5 px-3 bg-[#E4F1F5] hover:bg-[#CBE2E8] text-[#113F67] font-bold text-xs rounded-xl transition"
                       >
                         View Specs
