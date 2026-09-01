@@ -31,25 +31,42 @@ import {
 import * as XLSX from 'xlsx';
 import api from '../../services/api';
 
-// Function to compute canonical base model template (e.g. S6-L-B107-20.0 -> S6-L-B107-xx.x, MR-J3ENSCBL5M-L -> MR-J3ENSCBLxxM-L)
+// Function to compute canonical base model template (e.g. S6-L-B107-20.0 -> S6-L-B107-xx.x, VW3M8B11Rxx -> VW3M8B11Rxx)
 function getBasePartCodeTemplate(partCode) {
   if (!partCode) return '';
   let str = String(partCode).trim();
-  if (/(\d+|xx)M/i.test(str)) {
-    return str.replace(/(\d+|xx)M/gi, 'xxM');
+
+  // 1. If partCode already contains explicit wildcard ('xx.x', 'xxM', 'xxx', or 'xx'),
+  // it is ALREADY the canonical base model template! (e.g. VW3M8B11Rxx, S6-L-B107-xx.x, MR-J3ENSCBLxxM-L)
+  if (/xx/i.test(str)) {
+    return str;
   }
+
+  // 2. Trailing decimal length like S6-L-B107-20.0 or S6-L-B107-05.0 -> S6-L-B107-xx.x
   if (/-\d{1,2}\.\d+$/.test(str)) {
     return str.replace(/-\d{1,2}\.\d+$/, '-xx.x');
   }
-  if (/xx\.x/i.test(str)) {
-    return str;
-  }
+
+  // 3. Trailing dash like S6-L-B107- -> S6-L-B107-xx.x
   if (str.endsWith('-')) {
     return `${str}xx.x`;
   }
+
+  // 4. Schneider / Lexium / Delta trailing R03, R05, R10, R20, R30 -> Rxx
+  if (/R\d{2}$/i.test(str)) {
+    return str.replace(/R\d{2}$/i, 'Rxx');
+  }
+
+  // 5. Mitsubishi / Panasonic specific infix: CBL<len>M- or -<len>M- or -<len>M$ (e.g. MR-J3ENSCBL5M-L -> MR-J3ENSCBLxxM-L)
+  if (/(CBL|-)\d+M(-|$)/i.test(str)) {
+    return str.replace(/(CBL|-)\d+M(-|$)/gi, '$1xxM$2');
+  }
+
+  // 6. Trailing integer length like CBL-5 -> CBL-xxM
   if (/-\d+$/.test(str)) {
     return str.replace(/-\d+$/, '-xxM');
   }
+
   return str;
 }
 
@@ -58,38 +75,83 @@ function formatPartCodeWithLength(basePartCode, length) {
   if (!basePartCode) return '';
   const lenNum = Number(length) || 5;
   const decimalSuffix = lenNum < 10 ? `0${lenNum.toFixed(1)}` : `${lenNum.toFixed(1)}`;
+  const twoDigitSuffix = lenNum < 10 ? `0${Math.round(lenNum)}` : `${Math.round(lenNum)}`;
+  const threeDigitSuffix = lenNum < 10 ? `00${Math.round(lenNum)}` : lenNum < 100 ? `0${Math.round(lenNum)}` : `${Math.round(lenNum)}`;
   const meterSuffix = `${lenNum}M`;
 
   let result = String(basePartCode).trim();
 
-  if (/(\d+|xx)M/i.test(result)) {
-    return result.replace(/(\d+|xx)M/gi, meterSuffix);
-  }
+  // 1. Explicit 'xx.x' wildcard (e.g. S6-L-B107-xx.x -> S6-L-B107-20.0)
   if (/xx\.x/i.test(result)) {
     return result.replace(/xx\.x/gi, decimalSuffix);
   }
+
+  // 2. Explicit 'xxM' wildcard (e.g. MR-J3ENSCBLxxM-L -> MR-J3ENSCBL20M-L)
+  if (/xxM/i.test(result)) {
+    return result.replace(/xxM/gi, meterSuffix);
+  }
+
+  // 3. Explicit 'xxx' wildcard (e.g. CBL-xxx-PWR -> CBL-020-PWR)
+  if (/xxx/i.test(result)) {
+    return result.replace(/xxx/gi, threeDigitSuffix);
+  }
+
+  // 4. Explicit 'xx' wildcard anywhere (e.g. VW3M8B11Rxx -> VW3M8B11R05 / VW3M8B11R20, or CBLxx-PWR)
+  if (/xx/i.test(result)) {
+    return result.replace(/xx/gi, twoDigitSuffix);
+  }
+
+  // 5. Trailing decimal like "-05.0" (e.g. S6-L-B107-05.0 -> S6-L-B107-20.0)
   if (/-\d{1,2}\.\d+$/.test(result)) {
     return result.replace(/-\d{1,2}\.\d+$/, `-${decimalSuffix}`);
   }
+
+  // 6. Trailing R03, R05, R10, R20 (e.g. VW3M8B11R05 -> VW3M8B11R20)
+  if (/R\d{2}$/i.test(result)) {
+    return result.replace(/R\d{2}$/i, `R${twoDigitSuffix}`);
+  }
+
+  // 7. Mitsubishi / Panasonic specific infix: CBL<len>M- or -<len>M- or -<len>M$ (e.g. MR-J3ENSCBL5M-L -> MR-J3ENSCBL20M-L)
+  if (/(CBL|-)\d+M(-|$)/i.test(result)) {
+    return result.replace(/(CBL|-)\d+M(-|$)/gi, `$1${meterSuffix}$2`);
+  }
+
+  // 8. Trailing Dash
   if (result.endsWith('-')) {
     return `${result}${decimalSuffix}`;
   }
+
+  // 9. Trailing integer like "-5" (e.g. CBL-5 -> CBL-20)
   if (/-\d+$/.test(result)) {
     return result.replace(/-\d+$/, `-${lenNum}`);
   }
+
   return `${result}-${meterSuffix}`;
 }
 
 function getVariantLength(variant) {
   if (!variant) return 5;
   if (variant.default_length !== undefined && variant.default_length !== null && !isNaN(Number(variant.default_length))) {
-    return Number(variant.default_length);
+    const dLen = Number(variant.default_length);
+    if (dLen > 0) return dLen;
   }
   const pc = String(variant.part_code || '');
-  const mMatch = pc.match(/(\d+)M/i);
-  if (mMatch) return Number(mMatch[1]);
-  const decMatch = pc.match(/-(\d{1,2})\.\d+/);
+
+  // If part code has explicit wildcard 'xx', default to 5
+  if (/xx/i.test(pc)) return 5;
+
+  // Check Schneider / Lexium trailing R03, R05, R10, R20
+  const rMatch = pc.match(/R(\d{2})$/i);
+  if (rMatch) return Number(rMatch[1]);
+
+  // Check decimal suffix: -05.0, -20.0
+  const decMatch = pc.match(/-(\d{1,2})\.\d+$/);
   if (decMatch) return Number(decMatch[1]);
+
+  // Check Mitsubishi / Panasonic specific infix: CBL<len>M- or -<len>M- or -<len>M$
+  const mMatch = pc.match(/(?:CBL|-)(\d+)M(?:-|$)/i);
+  if (mMatch) return Number(mMatch[1]);
+
   return 5;
 }
 
