@@ -287,6 +287,7 @@ export function ProductDetail() {
   const [selectedModelKey, setSelectedModelKey] = useState('');
   const [selectedVariantId, setSelectedVariantId] = useState('');
   const [selectedLength, setSelectedLength] = useState(5);
+  const [isImageHovered, setIsImageHovered] = useState(false);
 
   useEffect(() => {
     async function fetchProduct() {
@@ -321,34 +322,7 @@ export function ProductDetail() {
     fetchProduct();
   }, [slug, searchParams]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#F3F9FB] text-[#113F67] flex items-center justify-center font-sans">
-        <div className="text-center space-y-2">
-          <Cpu className="w-8 h-8 text-[#226597] animate-spin mx-auto" />
-          <p className="text-xs text-slate-500 font-semibold">Loading Technical Datasheet...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!product) {
-    return (
-      <div className="min-h-screen bg-[#F3F9FB] text-[#113F67] flex flex-col justify-between font-sans">
-        <Header />
-        <div className="text-center py-32 space-y-4">
-          <h2 className="text-2xl font-bold font-display text-[#113F67]">Product Not Found</h2>
-          <RouterLink to="/products" className="inline-flex items-center space-x-2 text-xs font-bold text-[#226597] hover:text-[#113F67]">
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Products Catalog</span>
-          </RouterLink>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
-  const variants = Array.isArray(product.part_code_variants) ? product.part_code_variants : [];
+  const variants = Array.isArray(product?.part_code_variants) ? product.part_code_variants : [];
 
   // Group variants into distinct base models (e.g. B107-xx.x and M107-xx.x only)
   const distinctModelVariants = [];
@@ -393,13 +367,13 @@ export function ProductDetail() {
     ? (matchingSavedVariant && matchingSavedVariant.calculated_price !== undefined && matchingSavedVariant.calculated_price !== null
         ? Number(matchingSavedVariant.calculated_price)
         : calculateDynamicVariantPrice(selectedVariant, lenNumber))
-    : product.price !== null && product.price !== undefined && product.price !== ''
-    ? Number(product.price)
+    : product?.price !== null && product?.price !== undefined && product?.price !== ''
+    ? Number(product?.price)
     : null;
 
   const activeVariantDetails = selectedVariant
     ? {
-        product_name: product.product_name,
+        product_name: product?.product_name,
         part_code: dynamicPartCode,
         frame_size: selectedVariant.frame_size,
         motor_type: selectedVariant.motor_type,
@@ -432,22 +406,42 @@ export function ProductDetail() {
   };
 
   // Extract all custom variant images (supports image_urls array or image_url string)
-  const variantImages = [];
+  let variantImages = [];
   if (selectedVariant) {
     if (Array.isArray(selectedVariant.image_urls) && selectedVariant.image_urls.length > 0) {
-      variantImages.push(...selectedVariant.image_urls);
+      variantImages = selectedVariant.image_urls;
     } else if (typeof selectedVariant.image_url === 'string' && selectedVariant.image_url.trim().length > 0) {
       const trimmed = selectedVariant.image_url.trim();
       if (trimmed.startsWith('[')) {
         try {
           const parsed = JSON.parse(trimmed);
-          if (Array.isArray(parsed)) variantImages.push(...parsed);
-          else variantImages.push(trimmed);
+          if (Array.isArray(parsed)) variantImages = parsed;
+          else variantImages = [trimmed];
         } catch (e) {
-          variantImages.push(trimmed);
+          variantImages = [trimmed];
         }
       } else {
-        variantImages.push(trimmed);
+        variantImages = [trimmed];
+      }
+    }
+  }
+
+  // Model-level image fallback: if current length has no images, inherit from sibling of same model
+  if (variantImages.length === 0 && availableVariantsForModel.length > 0) {
+    const siblingWithImages = availableVariantsForModel.find((v) => {
+      return (Array.isArray(v.image_urls) && v.image_urls.length > 0) ||
+             (typeof v.image_url === 'string' && v.image_url.trim().length > 0);
+    });
+    if (siblingWithImages) {
+      if (Array.isArray(siblingWithImages.image_urls) && siblingWithImages.image_urls.length > 0) {
+        variantImages = siblingWithImages.image_urls;
+      } else if (typeof siblingWithImages.image_url === 'string' && siblingWithImages.image_url.trim().length > 0) {
+        try {
+          const parsed = JSON.parse(siblingWithImages.image_url);
+          variantImages = Array.isArray(parsed) ? parsed : [siblingWithImages.image_url];
+        } catch (e) {
+          variantImages = [siblingWithImages.image_url];
+        }
       }
     }
   }
@@ -463,10 +457,10 @@ export function ProductDetail() {
       }
     });
   } else {
-    if (product.thumbnail_image && !galleryImages.includes(product.thumbnail_image)) {
+    if (product?.thumbnail_image && !galleryImages.includes(product.thumbnail_image)) {
       galleryImages.push(product.thumbnail_image);
     }
-    if (Array.isArray(product.images) && product.images.length > 0) {
+    if (Array.isArray(product?.images) && product.images.length > 0) {
       product.images.forEach((img) => {
         if (img.image_url && !galleryImages.includes(img.image_url)) {
           galleryImages.push(img.image_url);
@@ -476,13 +470,31 @@ export function ProductDetail() {
   }
 
   const currentImageUrl = galleryImages[selectedImageIndex] || galleryImages[0] || null;
-  const embedUrl = getYouTubeEmbedUrl(product.video_url);
+  const embedUrl = getYouTubeEmbedUrl(product?.video_url);
 
   const displayPrice = selectedVariant
     ? selectedVariant.calculated_price
-    : product.price !== null && product.price !== undefined && product.price !== ''
-    ? Number(product.price)
+    : product?.price !== null && product?.price !== undefined && product?.price !== ''
+    ? Number(product?.price)
     : null;
+
+  // Auto-rotate carousel every 5 seconds when there are multiple images (> 1) and not hovered
+  useEffect(() => {
+    if (galleryImages.length <= 1 || isImageHovered) return;
+
+    const timer = setInterval(() => {
+      setSelectedImageIndex((prev) => (prev + 1) % galleryImages.length);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [galleryImages.length, isImageHovered, selectedImageIndex]);
+
+  // Keep selected image index safely within array bounds if list updates
+  useEffect(() => {
+    if (selectedImageIndex >= galleryImages.length && galleryImages.length > 0) {
+      setSelectedImageIndex(0);
+    }
+  }, [galleryImages.length, selectedImageIndex]);
 
   const handlePrevImage = () => {
     setSelectedImageIndex((prev) => (prev === 0 ? galleryImages.length - 1 : prev - 1));
@@ -544,6 +556,33 @@ export function ProductDetail() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F3F9FB] text-[#113F67] flex items-center justify-center font-sans">
+        <div className="text-center space-y-2">
+          <Cpu className="w-8 h-8 text-[#226597] animate-spin mx-auto" />
+          <p className="text-xs text-slate-500 font-semibold">Loading Technical Datasheet...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="min-h-screen bg-[#F3F9FB] text-[#113F67] flex flex-col justify-between font-sans">
+        <Header />
+        <div className="text-center py-32 space-y-4">
+          <h2 className="text-2xl font-bold font-display text-[#113F67]">Product Not Found</h2>
+          <RouterLink to="/products" className="inline-flex items-center space-x-2 text-xs font-bold text-[#226597] hover:text-[#113F67]">
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Products Catalog</span>
+          </RouterLink>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F3F9FB] text-[#113F67] flex flex-col font-sans">
       <SEOManager
@@ -574,13 +613,18 @@ export function ProductDetail() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start mb-16">
             {/* Gallery Image Slider */}
             <div className="lg:col-span-6 space-y-4">
-              <div className="glass-panel p-4 rounded-3xl border border-[#87C0CD]/40 shadow-md relative overflow-hidden h-96 flex items-center justify-center bg-white group">
+              <div 
+                className="glass-panel p-4 rounded-3xl border border-[#87C0CD]/40 shadow-md relative overflow-hidden h-96 flex items-center justify-center bg-white group"
+                onMouseEnter={() => setIsImageHovered(true)}
+                onMouseLeave={() => setIsImageHovered(false)}
+              >
                 {currentImageUrl ? (
                   <>
                     <img
+                      key={currentImageUrl}
                       src={currentImageUrl}
                       alt={product.product_name}
-                      className="w-full h-full object-contain cursor-zoom-in"
+                      className="w-full h-full object-contain cursor-zoom-in transition-opacity duration-300 animate-in fade-in"
                       onClick={() => setLightboxOpen(true)}
                     />
                     <button
@@ -663,7 +707,7 @@ export function ProductDetail() {
                       <select
                         value={selectedModelKey}
                         onChange={(e) => handleModelSelect(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-[#87C0CD]/50 rounded-xl text-xs font-bold text-[#113F67] focus:outline-none focus:border-[#226597] shadow-xs cursor-pointer"
+                        className="w-full px-3.5 py-2.5 bg-white border border-[#87C0CD]/50 rounded-xl text-xs font-bold text-[#113F67] focus:outline-none focus:border-[#226597] shadow-xs cursor-pointer truncate"
                       >
                         <option value="">-- Default Catalog Product (₹{Number(product.price || 0).toLocaleString('en-IN')}) --</option>
                         {distinctModelVariants.map((v) => (

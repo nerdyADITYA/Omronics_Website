@@ -231,10 +231,25 @@ export function CableCalculator() {
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const paginatedConfigurations = filteredConfigurations.slice(startIndex, endIndex);
 
+  // Smart windowed pagination helper: returns an array with ellipsis (e.g. [1, 2, 3, 4, '...', 28])
+  const getPaginationPages = (current, total) => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    if (current <= 4) {
+      return [1, 2, 3, 4, 5, '...', total];
+    }
+    if (current >= total - 3) {
+      return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+    }
+    return [1, '...', current - 1, current, current + 1, '...', total];
+  };
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [feedback, setFeedback] = useState(null);
+  const [paramTab, setParamTab] = useState('specs'); // 'specs' | 'images'
 
   // Live Adjustable Form State
   const [params, setParams] = useState({
@@ -360,6 +375,31 @@ export function CableCalculator() {
         }
       } else if (trimmed.length > 0) {
         urls = [trimmed];
+      }
+    }
+
+    // Model-level image fallback: if this specific length has no images, inherit from sibling variant of same model
+    if (urls.length === 0) {
+      const siblingWithImages = configurations.find((c) => {
+        if (String(c.product_id) !== String(variant.product_id)) return false;
+        const cBase = getBasePartCodeTemplate(c.part_code);
+        const cKey = `${cBase}__${c.motor_type || ''}__${c.frame_size || ''}`.toLowerCase();
+        return cKey === groupKey && (
+          (Array.isArray(c.image_urls) && c.image_urls.length > 0) ||
+          (c.image_url && String(c.image_url).trim().length > 0)
+        );
+      });
+      if (siblingWithImages) {
+        if (Array.isArray(siblingWithImages.image_urls) && siblingWithImages.image_urls.length > 0) {
+          urls = siblingWithImages.image_urls;
+        } else if (siblingWithImages.image_url) {
+          try {
+            const parsed = JSON.parse(siblingWithImages.image_url);
+            urls = Array.isArray(parsed) ? parsed : [siblingWithImages.image_url];
+          } catch (e) {
+            urls = [siblingWithImages.image_url];
+          }
+        }
       }
     }
 
@@ -721,7 +761,7 @@ export function CableCalculator() {
   }
 
   return (
-    <div className="space-y-6 font-sans w-full max-w-[1600px] mx-auto px-2 sm:px-4">
+    <div className="space-y-4 font-sans w-full max-w-full px-1 sm:px-2">
       {/* Hidden File Input for Excel Import */}
       <input
         ref={fileInputRef}
@@ -747,37 +787,37 @@ export function CableCalculator() {
       />
 
       {/* Header Bar */}
-      <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2">
-            <div className="p-2 rounded-xl bg-[#E4F1F5] text-[#226597]">
-              <Calculator className="w-6 h-6" />
-            </div>
-            <h1 className="text-xl font-bold text-[#113F67] font-display">Servo Cable Cost & Price Calculator</h1>
+      <div className="bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 rounded-xl bg-[#E4F1F5] dark:bg-[#0f1b36] text-[#226597] dark:text-[#38bdf8] shrink-0">
+            <Calculator className="w-5 h-5" />
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Manage multiple Part Code variants per Servo product. Adjust component specs, connectors, extra hardware, length, and profit margins live.
-          </p>
+          <div>
+            <h1 className="text-lg font-bold text-[#113F67] dark:text-slate-100 font-display">Servo Cable Cost & Price Calculator</h1>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Manage Part Code variants, live assembly specs, hardware connectors, and profit margins.
+            </p>
+          </div>
         </div>
 
         {/* Tab Switcher Navigation */}
-        <div className="flex items-center space-x-2 bg-[#F3F9FB] dark:bg-[#0f1b36] p-1.5 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
+        <div className="flex items-center space-x-1.5 bg-[#F3F9FB] dark:bg-[#0f1b36] p-1 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554] shrink-0">
           <button
             onClick={() => setActiveTab('calculator')}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
               activeTab === 'calculator' ? 'bg-[#226597] text-white shadow-sm' : 'text-slate-600 hover:text-[#113F67]'
             }`}
           >
-            <Sliders className="w-4 h-4" />
+            <Sliders className="w-3.5 h-3.5" />
             <span>Interactive Calculator</span>
           </button>
           <button
             onClick={() => setActiveTab('setup')}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
               activeTab === 'setup' ? 'bg-[#226597] text-white shadow-sm' : 'text-slate-600 hover:text-[#113F67]'
             }`}
           >
-            <Settings2 className="w-4 h-4" />
+            <Settings2 className="w-3.5 h-3.5" />
             <span>Setup Overview ({configurations.length})</span>
           </button>
         </div>
@@ -806,665 +846,647 @@ export function CableCalculator() {
       {activeTab === 'calculator' ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Product Selector, Variant Bar & Live Parameters */}
-          <div className="lg:col-span-6 space-y-6">
+          <div className="lg:col-span-6 space-y-6 min-w-0">
             {/* Product & Variant Selector Box */}
-            <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-5 space-y-4 shadow-sm">
-              <div className="flex items-center space-x-2 border-b border-[#87C0CD]/20 pb-3">
-                <Layers className="w-4 h-4 text-[#226597]" />
-                <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#113F67]">1. Target Servo Product & Part Code Variant</h2>
-              </div>
-              {/* Product Selector */}
-              <div>
-                <label className="block text-xs font-bold text-[#113F67] mb-1.5">Select Servo Cable Product *</label>
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => {
-                    const prodId = e.target.value;
-                    setSelectedProductId(prodId);
-                    setSelectedModelKey('');
-                    setActiveVariantId(null);
-                    const matchingConfigs = configurations.filter((c) => String(c.product_id) === String(prodId));
-                    if (matchingConfigs.length > 0) {
-                      loadVariantIntoForm(matchingConfigs[0]);
-                    } else {
-                      resetToNewVariant(prodId);
-                    }
-                  }}
-                  className="w-full px-3.5 py-2.5 bg-[#F3F9FB] border border-[#87C0CD]/40 rounded-xl text-xs text-[#113F67] font-bold focus:outline-none focus:border-[#226597]"
-                >
-                  {servoProducts.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.product_name} {p.model_number ? `(${p.model_number})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Part Code Model & Length Selector Bar */}
-              <div className="pt-2 border-t border-[#87C0CD]/20 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#113F67] flex items-center space-x-1">
-                    <FileCode className="w-3.5 h-3.5 text-[#226597]" />
-                    <span>1. Select Part Code Model ({distinctModelVariants.length} Models)</span>
-                  </span>
-                  <div className="flex items-center space-x-1.5">
-                    {activeVariantId && (
-                      <button
-                        type="button"
-                        onClick={handleAddDifferentLength}
-                        className="px-2.5 py-1 bg-[#226597] hover:bg-[#113F67] text-white text-[11px] font-bold rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs"
-                        title="Clone specifications from active model for a new length"
-                      >
-                        <Copy className="w-3 h-3" />
-                        <span>+ Add Length for this Model</span>
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={handleAddNewModel}
-                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs"
-                      title="Create a brand new Part Code model from scratch"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>+ Add New Model</span>
-                    </button>
-                  </div>
+            <div className="bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-2xl p-4 space-y-3 shadow-sm min-w-0">
+              <div className="flex items-center justify-between border-b border-[#87C0CD]/20 dark:border-[#233554] pb-2.5">
+                <div className="flex items-center space-x-2">
+                  <Layers className="w-4 h-4 text-[#226597] dark:text-[#38bdf8]" />
+                  <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#113F67] dark:text-slate-100">1. Target Product & Model</h2>
                 </div>
-
-                {/* Step 1: Model Dropdown */}
-                {distinctModelVariants.length > 0 ? (
-                  <div className="space-y-2.5">
-                    <div className="flex items-center space-x-2">
-                      <div className="relative flex-1" ref={variantDropdownRef}>
-                        <button
-                          type="button"
-                          onClick={() => setVariantDropdownOpen(!variantDropdownOpen)}
-                          className="w-full px-3.5 py-2.5 bg-[#F3F9FB] dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-xl text-xs font-bold text-[#113F67] dark:text-slate-200 focus:outline-none focus:border-[#226597] shadow-xs flex items-center justify-between transition cursor-pointer text-left"
-                        >
-                          <span className="truncate pr-2">
-                            {(() => {
-                              const selectedModelItem = distinctModelVariants.find(
-                                (m) => m.model_group_key === selectedModelKey
-                              );
-                              if (selectedModelItem) {
-                                return (
-                                  <>
-                                    <span className="font-mono text-[#226597] dark:text-[#38bdf8] font-extrabold">
-                                      {selectedModelItem.base_template}
-                                    </span>
-                                    {selectedModelItem.motor_type && (
-                                      <span className="text-[#113F67] dark:text-slate-300 font-semibold ml-1.5">
-                                        ({selectedModelItem.motor_type})
-                                      </span>
-                                    )}
-                                  </>
-                                );
-                              }
-                              return (
-                                <span className="text-slate-500 font-medium">
-                                  -- Creating New Model (Or Select Existing Below) --
-                                </span>
-                              );
-                            })()}
-                          </span>
-                          <ChevronRight
-                            className={`w-4 h-4 text-slate-400 transform transition-transform shrink-0 ${
-                              variantDropdownOpen ? '-rotate-90' : 'rotate-90'
-                            }`}
-                          />
-                        </button>
-
-                        {/* Dropdown Menu */}
-                        {variantDropdownOpen && (
-                          <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-xl shadow-2xl overflow-hidden font-sans animate-in fade-in slide-in-from-top-1 duration-150">
-                            {distinctModelVariants.length > 5 && (
-                              <div className="p-2 border-b border-[#87C0CD]/30 dark:border-[#233554] bg-[#F3F9FB] dark:bg-[#0f1b36]">
-                                <input
-                                  type="text"
-                                  placeholder="Search Part Code Model or Motor Spec..."
-                                  value={variantSearchQuery}
-                                  onChange={(e) => setVariantSearchQuery(e.target.value)}
-                                  className="w-full px-3 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-[#226597]"
-                                  autoFocus
-                                />
-                              </div>
-                            )}
-
-                            <div className="max-h-60 overflow-y-auto divide-y divide-[#87C0CD]/10 dark:divide-[#233554]/50 py-1">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  handleAddNewModel();
-                                  setVariantDropdownOpen(false);
-                                  setVariantSearchQuery('');
-                                }}
-                                className={`w-full px-3.5 py-2.5 text-left text-xs font-bold transition flex items-center justify-between cursor-pointer ${
-                                  !activeVariantId && !selectedModelKey
-                                    ? 'bg-[#226597] text-white'
-                                    : 'text-[#113F67] dark:text-slate-200 hover:bg-[#F3F9FB] dark:hover:bg-[#1e2e4a]'
-                                }`}
-                              >
-                                <div className="flex items-center space-x-1.5">
-                                  <Plus className="w-3.5 h-3.5 text-emerald-500" />
-                                  <span>+ Create Brand New Part Code Model</span>
-                                </div>
-                              </button>
-
-                              {(() => {
-                                const filteredModels = distinctModelVariants.filter((m) => {
-                                  if (!variantSearchQuery.trim()) return true;
-                                  const q = variantSearchQuery.toLowerCase();
-                                  return (
-                                    (m.base_template && m.base_template.toLowerCase().includes(q)) ||
-                                    (m.part_code && m.part_code.toLowerCase().includes(q)) ||
-                                    (m.motor_type && m.motor_type.toLowerCase().includes(q)) ||
-                                    (m.frame_size && m.frame_size.toLowerCase().includes(q))
-                                  );
-                                });
-
-                                if (filteredModels.length === 0) {
-                                  return (
-                                    <div className="p-3 text-center text-xs text-slate-400 italic">
-                                      No models match search query.
-                                    </div>
-                                  );
-                                }
-
-                                return filteredModels.map((m) => {
-                                  const isSelected = m.model_group_key === selectedModelKey;
-                                  return (
-                                    <button
-                                      key={m.model_group_key}
-                                      type="button"
-                                      onClick={() => {
-                                        handleSelectModel(m.model_group_key);
-                                        setVariantDropdownOpen(false);
-                                        setVariantSearchQuery('');
-                                      }}
-                                      className={`w-full px-3.5 py-2.5 text-left text-xs transition flex items-center justify-between cursor-pointer ${
-                                        isSelected
-                                          ? 'bg-[#E4F1F5] dark:bg-[#1e2e4a] text-[#226597] dark:text-[#38bdf8] font-extrabold border-l-4 border-[#226597]'
-                                          : 'text-[#113F67] dark:text-slate-200 hover:bg-[#F3F9FB] dark:hover:bg-[#111c33] font-semibold'
-                                      }`}
-                                    >
-                                      <div className="flex flex-col space-y-0.5 min-w-0 pr-2">
-                                        <span className="font-mono text-xs font-bold text-[#113F67] dark:text-slate-100 truncate">
-                                          {m.base_template}
-                                        </span>
-                                        {m.motor_type && (
-                                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
-                                            {m.motor_type} {m.frame_size ? `(${m.frame_size})` : ''}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </button>
-                                  );
-                                });
-                              })()}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {activeVariantId && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteVariant(activeVariantId)}
-                          className="px-3 py-2.5 text-xs font-bold bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 rounded-xl transition flex items-center space-x-1 cursor-pointer shrink-0"
-                          title="Delete active length setup"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          <span>Delete</span>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Step 2: Available Lengths Strip for Selected Model */}
-                    {selectedModelKey && (
-                      <div className="p-3 bg-[#E4F1F5]/40 dark:bg-[#152238]/60 border border-[#87C0CD]/30 dark:border-[#233554] rounded-xl space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[11px] font-extrabold text-[#113F67] dark:text-slate-200 uppercase tracking-wider">
-                            2. Saved Lengths for this Model ({availableVariantsForModel.length})
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                            Click length to edit setup
-                          </span>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {availableVariantsForModel.map((v) => {
-                            const vLen = getVariantLength(v);
-                            const isSelected = String(v.id) === String(activeVariantId);
-                            return (
-                              <button
-                                key={v.id}
-                                type="button"
-                                onClick={() => loadVariantIntoForm(v)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer flex items-center space-x-1.5 ${
-                                  isSelected
-                                    ? 'bg-[#226597] text-white border-[#226597] shadow-xs scale-105'
-                                    : 'bg-white dark:bg-[#1e2e4a] text-[#113F67] dark:text-slate-200 border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#E4F1F5]'
-                                }`}
-                              >
-                                <span>{vLen}m</span>
-                                <span className={`text-[10px] font-mono ${isSelected ? 'text-sky-200' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                  ₹{Number(v.selling_price || 0).toLocaleString('en-IN')}
-                                </span>
-                              </button>
-                            );
-                          })}
-
-                          <button
-                            type="button"
-                            onClick={handleAddDifferentLength}
-                            className="px-2.5 py-1.5 bg-white dark:bg-[#1e2e4a] border border-dashed border-[#226597] text-[#226597] dark:text-[#38bdf8] text-xs font-bold rounded-lg hover:bg-[#E4F1F5] dark:hover:bg-[#152238] transition flex items-center space-x-1 cursor-pointer"
-                            title="Add a new length variant with same specs"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>Add Length</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                {currentProduct && (
+                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    Default Price: <span className="font-extrabold text-[#226597] dark:text-[#38bdf8]">{currentProduct.current_price ? `₹${Number(currentProduct.current_price).toLocaleString('en-IN')}` : 'Not set'}</span>
                   </div>
-                ) : (
-                  <p className="text-xs text-slate-500 italic">No saved part codes for this product yet.</p>
                 )}
               </div>
 
-              {currentProduct && (
-                <div className="p-3 bg-[#F3F9FB] dark:bg-[#0f1b36] border border-[#87C0CD]/30 dark:border-[#233554] rounded-xl flex items-center justify-between text-xs">
-                  <span className="text-slate-500 font-medium">Saved Default Catalog Price:</span>
-                  <span className="font-extrabold text-[#113F67]">
-                    {currentProduct.current_price ? `₹${Number(currentProduct.current_price).toLocaleString('en-IN')}` : 'Not set'}
-                  </span>
+              {/* Product and Model Selectors Side-by-Side */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                {/* Product Selector */}
+                <div className="flex flex-col">
+                  <div className="h-5 flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-[#113F67] dark:text-slate-300">Target Servo Cable Product *</label>
+                  </div>
+                  <select
+                    value={selectedProductId}
+                    onChange={(e) => {
+                      const prodId = e.target.value;
+                      setSelectedProductId(prodId);
+                      setSelectedModelKey('');
+                      setActiveVariantId(null);
+                      const matchingConfigs = configurations.filter((c) => String(c.product_id) === String(prodId));
+                      if (matchingConfigs.length > 0) {
+                        loadVariantIntoForm(matchingConfigs[0]);
+                      } else {
+                        resetToNewVariant(prodId);
+                      }
+                    }}
+                    className="w-full h-10 px-3 bg-[#F3F9FB] dark:bg-[#0f1b36] border border-[#87C0CD]/40 dark:border-[#233554] rounded-xl text-xs text-[#113F67] dark:text-slate-200 font-bold focus:outline-none focus:border-[#226597] truncate shadow-xs"
+                  >
+                    {servoProducts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.product_name} {p.model_number ? `(${p.model_number})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Model Selector */}
+                <div className="flex flex-col">
+                  <div className="h-5 flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-[#113F67] dark:text-slate-300">
+                      Part Code Model ({distinctModelVariants.length})
+                    </label>
+                    <div className="flex items-center space-x-1.5 text-[10px]">
+                      {activeVariantId && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleAddDifferentLength}
+                            className="text-[#226597] dark:text-[#38bdf8] hover:underline font-bold"
+                            title="Clone specs for new length"
+                          >
+                            + Add Length
+                          </button>
+                          <span className="text-slate-300 dark:text-slate-600">|</span>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleAddNewModel}
+                        className="text-emerald-600 dark:text-emerald-400 hover:underline font-bold"
+                        title="Create new model"
+                      >
+                        + New Model
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-1.5 min-w-0 w-full">
+                    <div className="relative flex-1 min-w-0" ref={variantDropdownRef}>
+                      <button
+                        type="button"
+                        onClick={() => setVariantDropdownOpen(!variantDropdownOpen)}
+                        title={(() => {
+                          const selectedModelItem = distinctModelVariants.find(
+                            (m) => m.model_group_key === selectedModelKey
+                          );
+                          return selectedModelItem ? `${selectedModelItem.base_template} (${selectedModelItem.motor_type || ''})` : '';
+                        })()}
+                        className="w-full h-10 px-3 bg-[#F3F9FB] dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-xl text-xs font-bold text-[#113F67] dark:text-slate-200 focus:outline-none focus:border-[#226597] shadow-xs flex items-center justify-between transition cursor-pointer text-left min-w-0 overflow-hidden"
+                      >
+                        <div className="truncate pr-1.5 min-w-0 flex-1">
+                          {(() => {
+                            const selectedModelItem = distinctModelVariants.find(
+                              (m) => m.model_group_key === selectedModelKey
+                            );
+                            if (selectedModelItem) {
+                              return (
+                                <span className="truncate block min-w-0">
+                                  <span className="font-mono text-[#226597] dark:text-[#38bdf8] font-extrabold">
+                                    {selectedModelItem.base_template}
+                                  </span>
+                                  {selectedModelItem.motor_type && (
+                                    <span className="text-[#113F67] dark:text-slate-300 font-semibold ml-1 opacity-80 text-[10px]">
+                                      ({selectedModelItem.motor_type})
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="text-slate-500 font-medium truncate block min-w-0 text-[11px]">
+                                -- Select / Create Model --
+                              </span>
+                            );
+                          })()}
+                        </div>
+                        <ChevronRight
+                          className={`w-3.5 h-3.5 text-slate-400 transform transition-transform shrink-0 ${
+                            variantDropdownOpen ? '-rotate-90' : 'rotate-90'
+                          }`}
+                        />
+                      </button>
+
+                      {/* Dropdown Menu */}
+                      {variantDropdownOpen && (
+                        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-xl shadow-2xl overflow-hidden font-sans animate-in fade-in slide-in-from-top-1 duration-150">
+                          {distinctModelVariants.length > 5 && (
+                            <div className="p-2 border-b border-[#87C0CD]/30 dark:border-[#233554] bg-[#F3F9FB] dark:bg-[#0f1b36]">
+                              <input
+                                type="text"
+                                placeholder="Search Part Code Model or Motor Spec..."
+                                value={variantSearchQuery}
+                                onChange={(e) => setVariantSearchQuery(e.target.value)}
+                                className="w-full px-3 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-[#226597]"
+                                autoFocus
+                              />
+                            </div>
+                          )}
+
+                          <div className="max-h-60 overflow-y-auto divide-y divide-[#87C0CD]/10 dark:divide-[#233554]/50 py-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleAddNewModel();
+                                setVariantDropdownOpen(false);
+                                setVariantSearchQuery('');
+                              }}
+                              className={`w-full px-3.5 py-2.5 text-left text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                                !activeVariantId && !selectedModelKey
+                                  ? 'bg-[#226597] text-white'
+                                  : 'text-[#113F67] dark:text-slate-200 hover:bg-[#F3F9FB] dark:hover:bg-[#1e2e4a]'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-1.5">
+                                <Plus className="w-3.5 h-3.5 text-emerald-500" />
+                                <span>+ Create Brand New Part Code Model</span>
+                              </div>
+                            </button>
+
+                            {(() => {
+                              const filteredModels = distinctModelVariants.filter((m) => {
+                                if (!variantSearchQuery.trim()) return true;
+                                const q = variantSearchQuery.toLowerCase();
+                                return (
+                                  (m.base_template && m.base_template.toLowerCase().includes(q)) ||
+                                  (m.part_code && m.part_code.toLowerCase().includes(q)) ||
+                                  (m.motor_type && m.motor_type.toLowerCase().includes(q)) ||
+                                  (m.frame_size && m.frame_size.toLowerCase().includes(q))
+                                );
+                              });
+
+                              if (filteredModels.length === 0) {
+                                return (
+                                  <div className="p-3 text-center text-xs text-slate-400 italic">
+                                    No models match search query.
+                                  </div>
+                                );
+                              }
+
+                              return filteredModels.map((m) => {
+                                const isSelected = m.model_group_key === selectedModelKey;
+                                return (
+                                  <button
+                                    key={m.model_group_key}
+                                    type="button"
+                                    onClick={() => {
+                                      handleSelectModel(m.model_group_key);
+                                      setVariantDropdownOpen(false);
+                                      setVariantSearchQuery('');
+                                    }}
+                                    className={`w-full px-3.5 py-2.5 text-left text-xs transition flex items-center justify-between cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-[#E4F1F5] dark:bg-[#1e2e4a] text-[#226597] dark:text-[#38bdf8] font-extrabold border-l-4 border-[#226597]'
+                                        : 'text-[#113F67] dark:text-slate-200 hover:bg-[#F3F9FB] dark:hover:bg-[#111c33] font-semibold'
+                                    }`}
+                                  >
+                                    <div className="flex flex-col space-y-0.5 min-w-0 pr-2">
+                                      <span className="font-mono text-xs font-bold text-[#113F67] dark:text-slate-100 truncate">
+                                        {m.base_template}
+                                      </span>
+                                      {m.motor_type && (
+                                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                                          {m.motor_type} {m.frame_size ? `(${m.frame_size})` : ''}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </button>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {activeVariantId && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteVariant(activeVariantId)}
+                        className="h-10 px-3 text-xs font-bold bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 rounded-xl transition flex items-center cursor-pointer shrink-0 shadow-xs"
+                        title="Delete active length setup"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Saved Lengths for this Model Strip */}
+              {selectedModelKey && (
+                <div className="p-2.5 bg-[#E4F1F5]/40 dark:bg-[#152238]/60 border border-[#87C0CD]/30 dark:border-[#233554] rounded-xl flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-1.5 flex-wrap gap-1">
+                    <span className="text-[10px] font-extrabold text-[#113F67] dark:text-slate-200 uppercase tracking-wider mr-1">
+                      Saved Lengths ({availableVariantsForModel.length}):
+                    </span>
+                    {availableVariantsForModel.map((v) => {
+                      const vLen = getVariantLength(v);
+                      const isSelected = String(v.id) === String(activeVariantId);
+                      return (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => loadVariantIntoForm(v)}
+                          className={`px-2 py-1 rounded-lg text-xs font-bold border transition cursor-pointer flex items-center space-x-1 ${
+                            isSelected
+                              ? 'bg-[#226597] text-white border-[#226597] shadow-xs scale-105'
+                              : 'bg-white dark:bg-[#1e2e4a] text-[#113F67] dark:text-slate-200 border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#E4F1F5]'
+                          }`}
+                        >
+                          <span>{vLen}m</span>
+                          <span className={`text-[10px] font-mono ${isSelected ? 'text-sky-200' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                            ₹{Number(v.selling_price || 0).toLocaleString('en-IN')}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddDifferentLength}
+                    className="px-2 py-1 bg-white dark:bg-[#1e2e4a] border border-dashed border-[#226597] text-[#226597] dark:text-[#38bdf8] text-[11px] font-bold rounded-lg hover:bg-[#E4F1F5] transition flex items-center space-x-1 cursor-pointer shrink-0"
+                    title="Add a new length variant with same specs"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Add Length</span>
+                  </button>
                 </div>
               )}
             </div>
 
             {/* Live Component Parameters Panel */}
-            <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-5 space-y-5 shadow-sm">
-              <div className="flex items-center justify-between border-b border-[#87C0CD]/20 pb-3">
+            <div className="bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-2xl p-4 space-y-3.5 shadow-sm min-w-0">
+              <div className="flex flex-wrap items-center justify-between border-b border-[#87C0CD]/20 dark:border-[#233554] pb-2.5 gap-2">
                 <div className="flex items-center space-x-2">
-                  <Sliders className="w-4 h-4 text-[#226597]" />
-                  <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#113F67]">
-                    2. Live Adjustable Parameters
+                  <Sliders className="w-4 h-4 text-[#226597] dark:text-[#38bdf8]" />
+                  <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#113F67] dark:text-slate-100">
+                    2. Live Parameters
                   </h2>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300">
+                    {activeVariantId ? `#${activeVariantId}` : 'New'}
+                  </span>
                 </div>
-                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 dark:text-sky-300 text-sky-800">
-                  {activeVariantId ? `Editing Variant #${activeVariantId}` : 'Creating New Variant'}
-                </span>
+
+                {/* Sub-Tabs Switcher */}
+                <div className="flex items-center space-x-1 bg-[#F3F9FB] dark:bg-[#0f1b36] p-1 rounded-lg border border-[#87C0CD]/30 dark:border-[#233554]">
+                  <button
+                    type="button"
+                    onClick={() => setParamTab('specs')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                      paramTab === 'specs' ? 'bg-[#226597] text-white shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-[#113F67] dark:hover:text-slate-200'
+                    }`}
+                  >
+                    Specs & Costs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setParamTab('images')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition flex items-center space-x-1 cursor-pointer ${
+                      paramTab === 'images' ? 'bg-[#226597] text-white shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-[#113F67] dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <ImageIcon className="w-3 h-3" />
+                    <span>Images ({params.image_urls ? params.image_urls.length : 0})</span>
+                  </button>
+                </div>
+
+                {/* Header Quick Save Button */}
+                <button
+                  type="button"
+                  onClick={handleSaveVariantAndSync}
+                  disabled={saving || !selectedProductId}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-xs rounded-lg shadow-xs transition flex items-center space-x-1.5 cursor-pointer"
+                  title="Save active setup"
+                >
+                  {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  <span>Save Setup (₹{Math.round(sellingPrice).toLocaleString('en-IN')})</span>
+                </button>
               </div>
 
-              {/* Variant Cable Multiple Images Input & Clipboard Paste Area */}
-              <div className="space-y-3 bg-[#F3F9FB]/60 dark:bg-[#0f1b36] p-4 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#226597] flex items-center space-x-1.5">
-                    <ImageIcon className="w-3.5 h-3.5" />
-                    <span>Variant Cable Images ({params.image_urls ? params.image_urls.length : 0})</span>
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400">Ctrl+V anywhere to paste images</span>
-                </div>
-
-                {/* Upload & Paste Dropzone */}
-                <div
-                  onPaste={handleVariantImagePaste}
-                  tabIndex={0}
-                  className="relative group border-2 border-dashed border-[#87C0CD]/50 hover:border-[#226597] dark:border-[#233554] rounded-xl p-4 bg-white dark:bg-[#152238] transition flex flex-col items-center justify-center text-center cursor-pointer focus:outline-none focus:border-[#226597]"
-                >
-                  <div
-                    onClick={() => variantImageInputRef.current?.click()}
-                    className="w-full flex flex-col items-center space-y-1.5 py-2"
-                  >
-                    <UploadCloud className="w-7 h-7 text-[#226597] animate-pulse" />
-                    <p className="text-xs font-bold text-[#113F67]">
-                      Click to upload multiple images or <span className="text-emerald-600 underline">paste clipped images (Ctrl+V)</span>
-                    </p>
-                    <p className="text-[10px] text-slate-400">
-                      Supports selecting multiple files or pasting sequential clipboard images.
-                    </p>
+              {paramTab === 'specs' ? (
+                <div className="space-y-3">
+                  {/* Row 1: Header Specifications */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-[#F3F9FB]/60 dark:bg-[#0f1b36]/80 p-3 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#113F67] dark:text-slate-300 uppercase mb-0.5">Part Code *</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. S6-L-P014-xx.x"
+                        value={params.part_code}
+                        onChange={(e) => setParams({ ...params, part_code: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#113F67] dark:text-slate-300 uppercase mb-0.5">Frame Size Header</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 40/60/80 FRAME SIZE"
+                        value={params.frame_size}
+                        onChange={(e) => setParams({ ...params, frame_size: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-semibold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#113F67] dark:text-slate-300 uppercase mb-0.5">Power / Motor Type Header</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 100W TO 750W - INCREMENTAL"
+                        value={params.motor_type}
+                        onChange={(e) => setParams({ ...params, motor_type: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-semibold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Multiple Images Gallery Grid Preview */}
-                {Array.isArray(params.image_urls) && params.image_urls.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-[#87C0CD]/30 dark:border-[#233554]">
+                  {/* Row 2: Raw Cable & Length */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-[#F3F9FB]/60 dark:bg-[#0f1b36]/80 p-3 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#113F67] dark:text-slate-300 uppercase mb-0.5">Cable Dimension Spec</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 2X2X0.20SQMM SHD"
+                        value={params.cable_dimension}
+                        onChange={(e) => setParams({ ...params, cable_dimension: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-semibold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#113F67] dark:text-slate-300 uppercase mb-0.5">Cable Cost / Meter (₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 90"
+                        value={params.cable_cost_per_meter}
+                        onChange={(e) => setParams({ ...params, cable_cost_per_meter: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center mb-0.5">
+                        <label className="text-[10px] font-bold text-[#113F67] dark:text-slate-300 uppercase">Length (m)</label>
+                        <span className="text-[11px] font-extrabold text-[#226597] dark:text-[#38bdf8]">{params.default_length}m</span>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0.5"
+                        placeholder="e.g. 5"
+                        value={params.default_length}
+                        onChange={(e) => {
+                          const lenVal = parseFloat(e.target.value) || 1;
+                          let updatedPartCode = params.part_code;
+                          if (!activeVariantId && params.part_code) {
+                            updatedPartCode = formatPartCodeWithLength(params.part_code, lenVal);
+                          }
+                          setParams((prev) => ({
+                            ...prev,
+                            default_length: lenVal,
+                            part_code: updatedPartCode,
+                          }));
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-slate-200"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 3: Connectors & Hardware */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[#F3F9FB]/60 dark:bg-[#0f1b36]/80 p-3 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#113F67] dark:text-slate-300 uppercase mb-0.5">Connector 1 Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. DB9-MALE"
+                        value={params.connector1_name}
+                        onChange={(e) => setParams({ ...params, connector1_name: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-semibold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#113F67] dark:text-slate-300 uppercase mb-0.5">Conn 1 Cost (₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 50"
+                        value={params.connector1_cost}
+                        onChange={(e) => setParams({ ...params, connector1_cost: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#113F67] dark:text-slate-300 uppercase mb-0.5">Connector 2 Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 7 PIN MICRO"
+                        value={params.connector2_name}
+                        onChange={(e) => setParams({ ...params, connector2_name: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-semibold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#113F67] dark:text-slate-300 uppercase mb-0.5">Conn 2 Cost (₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 250"
+                        value={params.connector2_cost}
+                        onChange={(e) => setParams({ ...params, connector2_cost: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-slate-200 placeholder:text-slate-400"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 4: Assembly & Margin */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-[#F3F9FB]/60 dark:bg-[#0f1b36]/80 p-3 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#113F67] dark:text-slate-300 uppercase mb-0.5">Labour Cost (₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 150"
+                        value={params.labour_cost}
+                        onChange={(e) => setParams({ ...params, labour_cost: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#113F67] dark:text-slate-300 uppercase mb-0.5">Battery Cost (₹ Opt.)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 0"
+                        value={params.battery_cost}
+                        onChange={(e) => setParams({ ...params, battery_cost: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center mb-0.5">
+                        <label className="text-[10px] font-bold text-[#113F67] dark:text-slate-300 uppercase">Margin (%)</label>
+                        <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400">{params.margin_percentage}%</span>
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        max="500"
+                        step="1"
+                        placeholder="e.g. 35"
+                        value={params.margin_percentage}
+                        onChange={(e) => setParams({ ...params, margin_percentage: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-slate-200"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Additional Components */}
+                  <div className="bg-[#F3F9FB]/60 dark:bg-[#0f1b36]/80 p-3 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554] space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                        Uploaded Gallery ({params.image_urls.length})
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#113F67] dark:text-slate-200">
+                        Additional Components ({Array.isArray(params.additional_components) ? params.additional_components.length : 0})
                       </span>
                       <button
                         type="button"
-                        onClick={() => setParams({ ...params, image_urls: [] })}
-                        className="text-[10px] text-rose-600 hover:underline font-bold"
+                        onClick={handleAddExtraComponent}
+                        className="px-2 py-1 bg-[#226597] hover:bg-[#113F67] text-white text-[10px] font-bold rounded-md transition flex items-center space-x-1 cursor-pointer"
                       >
-                        Clear All
+                        <Plus className="w-3 h-3" />
+                        <span>Add Component</span>
                       </button>
                     </div>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
-                      {params.image_urls.map((imgUrl, idx) => (
-                        <div key={idx} className="relative group w-full h-20 bg-white rounded-xl border border-[#87C0CD]/30 p-1 shadow-2xs overflow-hidden">
-                          <img src={imgUrl} alt={`Variant Cable ${idx + 1}`} className="w-full h-full object-contain" />
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveVariantImage(idx)}
-                            className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full opacity-80 group-hover:opacity-100 hover:bg-rose-700 transition shadow-xs"
-                            title="Delete image"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                          {idx === 0 && (
-                            <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-[#113F67] text-white text-[8px] font-extrabold rounded uppercase tracking-wider">
-                              Primary
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
 
-              {/* Header Specifications */}
-              <div className="space-y-3 bg-[#F3F9FB]/60 dark:bg-[#0f1b36] p-4 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#226597] block">Header Specifications</span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#113F67] mb-1">Frame Size Header</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 40/60/80 FRAME SIZE"
-                      value={params.frame_size}
-                      onChange={(e) => setParams({ ...params, frame_size: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67] placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#113F67] mb-1">Power / Motor Type Header</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 100W TO 750W - INCREMENTAL"
-                      value={params.motor_type}
-                      onChange={(e) => setParams({ ...params, motor_type: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67] placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-bold text-[#113F67] mb-1">Part Code *</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. S6-L-P014-xx.x or S6-L-P020-xx.x"
-                      value={params.part_code}
-                      onChange={(e) => setParams({ ...params, part_code: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400 font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Cable Dimension & Length */}
-              <div className="space-y-3 bg-[#F3F9FB]/60 dark:bg-[#0f1b36] p-4 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#226597] block">Raw Cable & Length</span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#113F67] mb-1">Cable Dimension Spec</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 2X2X0.20SQMM SHD"
-                      value={params.cable_dimension}
-                      onChange={(e) => setParams({ ...params, cable_dimension: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67] placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#113F67] mb-1">Cable Cost per Meter (₹)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="e.g. 90"
-                      value={params.cable_cost_per_meter}
-                      onChange={(e) => setParams({ ...params, cable_cost_per_meter: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-[11px] font-bold text-[#113F67]">Cable Length (meters)</label>
-                      <span className="text-xs font-extrabold text-[#226597]">{params.default_length}m</span>
-                    </div>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0.5"
-                      placeholder="e.g. 5"
-                      value={params.default_length}
-                      onChange={(e) => {
-                        const lenVal = parseFloat(e.target.value) || 1;
-                        let updatedPartCode = params.part_code;
-                        if (!activeVariantId && params.part_code) {
-                          updatedPartCode = formatPartCodeWithLength(params.part_code, lenVal);
-                        }
-                        setParams((prev) => ({
-                          ...prev,
-                          default_length: lenVal,
-                          part_code: updatedPartCode,
-                        }));
-                      }}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
-                    />
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {[1, 2, 3, 5, 8, 10, 15, 18, 20, 25, 30].map((len) => (
-                        <button
-                          key={len}
-                          type="button"
-                          onClick={() => {
-                            let updatedPartCode = params.part_code;
-                            if (!activeVariantId && params.part_code) {
-                              updatedPartCode = formatPartCodeWithLength(params.part_code, len);
-                            }
-                            setParams((prev) => ({
-                              ...prev,
-                              default_length: len,
-                              part_code: updatedPartCode,
-                            }));
-                          }}
-                          className={`px-2.5 py-1 text-[10px] font-bold rounded-md border transition cursor-pointer ${
-                            Number(params.default_length) === len
-                              ? 'bg-[#226597] text-white border-[#226597]'
-                              : 'bg-white dark:bg-[#152238] text-[#113F67] dark:text-slate-200 border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#E4F1F5]'
-                          }`}
-                        >
-                          {len}m
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Connectors, Labour & Battery */}
-              <div className="space-y-3 bg-[#F3F9FB]/60 dark:bg-[#0f1b36] p-4 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#226597] block">Connectors & Assembly Costs</span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#113F67] mb-1">Connector 1 Name</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. DB9-MALE"
-                      value={params.connector1_name}
-                      onChange={(e) => setParams({ ...params, connector1_name: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67] placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#113F67] mb-1">Connector 1 Cost (₹)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="e.g. 50"
-                      value={params.connector1_cost}
-                      onChange={(e) => setParams({ ...params, connector1_cost: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#113F67] mb-1">Connector 2 Name</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. MICRO MOTOR 7 PIN"
-                      value={params.connector2_name}
-                      onChange={(e) => setParams({ ...params, connector2_name: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-semibold text-[#113F67] placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#113F67] mb-1">Connector 2 Cost (₹)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="e.g. 250"
-                      value={params.connector2_cost}
-                      onChange={(e) => setParams({ ...params, connector2_cost: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#113F67] mb-1">Labour Cost (₹)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="e.g. 150"
-                      value={params.labour_cost}
-                      onChange={(e) => setParams({ ...params, labour_cost: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#113F67] mb-1">Battery Cost (₹ Optional)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="e.g. 0"
-                      value={params.battery_cost}
-                      onChange={(e) => setParams({ ...params, battery_cost: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
-                    />
-                  </div>
-                </div>
-
-                {/* Dynamic Extra Components List */}
-                <div className="pt-3 border-t border-[#87C0CD]/30 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#113F67]">
-                      Additional Components & Connectors
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleAddExtraComponent}
-                      className="px-3 py-1 bg-[#226597] hover:bg-[#113F67] text-white text-[11px] font-bold rounded-lg transition flex items-center space-x-1 cursor-pointer"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Add Extra Component</span>
-                    </button>
-                  </div>
-
-                  {Array.isArray(params.additional_components) && params.additional_components.length > 0 ? (
-                    <div className="space-y-2">
-                      {params.additional_components.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-[#87C0CD]/40">
-                          <input
-                            type="text"
-                            placeholder={`e.g. Connector ${idx + 3} / Terminal`}
-                            value={item.name}
-                            onChange={(e) => handleUpdateExtraComponent(idx, 'name', e.target.value)}
-                            className="flex-1 px-2.5 py-1.5 bg-[#F3F9FB] border border-[#87C0CD]/30 rounded text-xs font-semibold text-[#113F67] placeholder:text-slate-400"
-                          />
-                          <div className="w-28 flex items-center">
-                            <span className="text-xs font-bold text-slate-500 mr-1">₹</span>
+                    {Array.isArray(params.additional_components) && params.additional_components.length > 0 && (
+                      <div className="space-y-1.5">
+                        {params.additional_components.map((item, idx) => (
+                          <div key={idx} className="flex items-center gap-2 bg-white dark:bg-[#152238] p-1.5 rounded-lg border border-[#87C0CD]/40 dark:border-[#233554]">
                             <input
-                              type="number"
-                              step="0.01"
-                              placeholder="e.g. 75"
-                              value={item.cost}
-                              onChange={(e) => handleUpdateExtraComponent(idx, 'cost', e.target.value)}
-                              className="w-full px-2.5 py-1.5 bg-[#F3F9FB] border border-[#87C0CD]/30 rounded text-xs font-bold text-[#113F67] placeholder:text-slate-400"
+                              type="text"
+                              placeholder={`e.g. Connector ${idx + 3} / Terminal`}
+                              value={item.name}
+                              onChange={(e) => handleUpdateExtraComponent(idx, 'name', e.target.value)}
+                              className="flex-1 px-2 py-1 bg-[#F3F9FB] dark:bg-[#0f1b36] border border-[#87C0CD]/30 dark:border-[#233554] rounded text-xs font-semibold text-[#113F67] dark:text-slate-200"
                             />
+                            <div className="w-24 flex items-center">
+                              <span className="text-xs font-bold text-slate-500 mr-1">₹</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                placeholder="0"
+                                value={item.cost}
+                                onChange={(e) => handleUpdateExtraComponent(idx, 'cost', e.target.value)}
+                                className="w-full px-2 py-1 bg-[#F3F9FB] dark:bg-[#0f1b36] border border-[#87C0CD]/30 dark:border-[#233554] rounded text-xs font-bold text-[#113F67] dark:text-slate-200"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveExtraComponent(idx)}
+                              className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                              title="Remove component"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveExtraComponent(idx)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded transition"
-                            title="Remove component"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* Tab 2: Images & Diagrams Gallery */
+                <div className="space-y-3 bg-[#F3F9FB]/60 dark:bg-[#0f1b36]/80 p-3.5 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
+                  <div
+                    onPaste={handleVariantImagePaste}
+                    tabIndex={0}
+                    onClick={() => variantImageInputRef.current?.click()}
+                    className="border-2 border-dashed border-[#87C0CD]/50 dark:border-[#233554] hover:border-[#226597] rounded-xl p-3 bg-white dark:bg-[#152238] transition flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 rounded-lg bg-[#E4F1F5] dark:bg-[#0f1b36] text-[#226597] dark:text-[#38bdf8]">
+                        <UploadCloud className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-[#113F67] dark:text-slate-200">
+                          Click to upload or <span className="text-emerald-600 dark:text-emerald-400 underline">paste images (Ctrl+V)</span>
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          Photos map to this Part Code model across all lengths.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 bg-[#226597] text-white text-[10px] font-bold rounded-md">
+                      Browse Files
+                    </span>
+                  </div>
+
+                  {/* Previews */}
+                  {Array.isArray(params.image_urls) && params.image_urls.length > 0 ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                          Uploaded Gallery ({params.image_urls.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setParams({ ...params, image_urls: [] })}
+                          className="text-[10px] text-rose-600 hover:underline font-bold"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                        {params.image_urls.map((imgUrl, idx) => (
+                          <div key={idx} className="relative group w-full h-16 bg-white rounded-lg border border-[#87C0CD]/30 p-1 shadow-2xs overflow-hidden">
+                            <img src={imgUrl} alt={`Variant ${idx + 1}`} className="w-full h-full object-contain" />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveVariantImage(idx)}
+                              className="absolute top-1 right-1 p-0.5 bg-rose-600 text-white rounded-full opacity-80 group-hover:opacity-100 hover:bg-rose-700 transition shadow-xs"
+                              title="Delete image"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                            {idx === 0 && (
+                              <span className="absolute bottom-1 left-1 px-1 py-0.2 bg-[#113F67] text-white text-[7px] font-extrabold rounded uppercase">
+                                Primary
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : (
-                    <p className="text-[11px] text-slate-500 italic">No extra hardware components added yet.</p>
+                    <p className="text-xs text-slate-400 italic text-center py-4">No images uploaded for this model yet.</p>
                   )}
                 </div>
-              </div>
-
-              {/* Profit Margin % */}
-              <div className="space-y-2 bg-[#F3F9FB]/60 dark:bg-[#0f1b36] p-4 rounded-xl border border-[#87C0CD]/30 dark:border-[#233554]">
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-[11px] font-bold text-[#113F67]">Profit Margin (%)</label>
-                  <span className="text-xs font-extrabold text-emerald-700 dark:text-emerald-400">{params.margin_percentage}%</span>
-                </div>
-                <input
-                  type="number"
-                  min="0"
-                  max="500"
-                  step="1"
-                  placeholder="e.g. 35"
-                  value={params.margin_percentage}
-                  onChange={(e) => setParams({ ...params, margin_percentage: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-[#87C0CD]/40 rounded-lg text-xs font-bold text-[#113F67] placeholder:text-slate-400"
-                />
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {[20, 25, 30, 35, 40, 45, 50].map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setParams({ ...params, margin_percentage: m })}
-                      className={`px-2.5 py-1 text-[10px] font-bold rounded-md border transition ${
-                        Number(params.margin_percentage) === m
-                          ? 'bg-emerald-700 text-white border-emerald-700'
-                          : 'bg-white dark:bg-[#152238] text-[#113F67] dark:text-slate-200 border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#E4F1F5]'
-                      }`}
-                    >
-                      {m}%
-                    </button>
-                  ))}
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
           {/* Right Column: Excel Sheet Breakdown Card */}
-          <div className="lg:col-span-6">
-            <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-6 space-y-6 shadow-md sticky top-6">
-              <div className="flex items-center justify-between border-b border-[#87C0CD]/30 pb-4">
-                <h2 className="text-base font-extrabold text-[#113F67] font-display flex items-center space-x-2">
-                  <Zap className="w-5 h-5 text-amber-500" />
+          <div className="lg:col-span-6 min-w-0">
+            <div className="bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-2xl p-4 space-y-3.5 shadow-md sticky top-6 min-w-0">
+              <div className="flex items-center justify-between border-b border-[#87C0CD]/30 dark:border-[#233554] pb-2.5">
+                <h2 className="text-sm font-extrabold text-[#113F67] dark:text-slate-100 font-display flex items-center space-x-2">
+                  <Zap className="w-4 h-4 text-amber-500" />
                   <span>Cost Calculation Breakdown</span>
                 </h2>
-                <span className="text-[10px] uppercase tracking-widest font-extrabold text-[#226597] dark:text-[#38bdf8] bg-[#E4F1F5] dark:bg-[#0f1b36] px-3 py-1 rounded-full border border-[#87C0CD]/40 dark:border-[#233554]">
+                <span className="text-[9px] uppercase tracking-widest font-extrabold text-[#226597] dark:text-[#38bdf8] bg-[#E4F1F5] dark:bg-[#0f1b36] px-2.5 py-0.5 rounded-full border border-[#87C0CD]/40 dark:border-[#233554]">
                   Formula Engine
                 </span>
               </div>
 
               {/* Banner Header Table */}
-              <div className="bg-[#FFF8E7] dark:bg-[#2a1e0c] border border-amber-300 dark:border-amber-700/60 rounded-xl p-4 text-center space-y-1">
-                <div className="text-xs font-black tracking-wide text-amber-950 dark:text-amber-200 uppercase">
+              <div className="bg-[#FFF8E7] dark:bg-[#2a1e0c] border border-amber-300 dark:border-amber-700/60 rounded-xl p-2.5 text-center space-y-0.5 min-w-0 overflow-hidden">
+                <div className="text-[11px] font-black tracking-wide text-amber-950 dark:text-amber-200 uppercase break-words break-all leading-tight">
                   {params.frame_size || 'FRAME SIZE (SPECIFY)'}
                 </div>
-                <div className="text-xs font-black tracking-wide text-amber-950 dark:text-amber-200 uppercase">
+                <div className="text-[11px] font-black tracking-wide text-amber-950 dark:text-amber-200 uppercase break-words break-all leading-tight">
                   {params.motor_type || 'POWER / MOTOR TYPE (SPECIFY)'}
                 </div>
-                <div className="text-sm font-black text-amber-900 dark:text-amber-300 font-mono pt-1">
+                <div className="text-xs font-black text-amber-900 dark:text-amber-300 font-mono pt-0.5 break-words break-all leading-tight">
                   {params.part_code || 'PART CODE (SPECIFY)'}
                 </div>
               </div>
@@ -1472,92 +1494,92 @@ export function CableCalculator() {
               {/* Line Items Table */}
               <div className="border border-[#87C0CD]/30 dark:border-[#233554] rounded-xl overflow-hidden text-xs">
                 <table className="w-full text-left">
-                  <thead className="bg-[#F3F9FB] dark:bg-[#111c33] uppercase text-[10px] font-extrabold text-[#113F67] dark:text-[#38bdf8] border-b border-[#87C0CD]/30 dark:border-[#233554]">
+                  <thead className="bg-[#F3F9FB] dark:bg-[#111c33] uppercase text-[9px] font-extrabold text-[#113F67] dark:text-[#38bdf8] border-b border-[#87C0CD]/30 dark:border-[#233554]">
                     <tr>
-                      <th className="px-4 py-3">Component / Specification</th>
-                      <th className="px-4 py-3 text-right">Details</th>
-                      <th className="px-4 py-3 text-right">Amount (₹)</th>
+                      <th className="px-3 py-2">Component / Specification</th>
+                      <th className="px-3 py-2 text-right">Details</th>
+                      <th className="px-3 py-2 text-right">Amount (₹)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#87C0CD]/20 dark:divide-[#233554] text-[#113F67]">
                     <tr>
-                      <td className="px-4 py-3 font-extrabold bg-[#E4F1F5] dark:bg-[#111c33] text-[#226597] dark:text-[#38bdf8]">LENGTH</td>
-                      <td className="px-4 py-3 text-right font-extrabold text-[#226597]">{lengthVal} meters</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold">₹{cablePerMeter}/m</td>
+                      <td className="px-3 py-1.5 font-extrabold bg-[#E4F1F5] dark:bg-[#111c33] text-[#226597] dark:text-[#38bdf8]">LENGTH</td>
+                      <td className="px-3 py-1.5 text-right font-extrabold text-[#226597]">{lengthVal} meters</td>
+                      <td className="px-3 py-1.5 text-right font-mono font-bold">₹{cablePerMeter}/m</td>
                     </tr>
                     <tr>
-                      <td className="px-4 py-3 font-semibold">
+                      <td className="px-3 py-1.5 font-semibold">
                         Dimensions
-                        <span className="block text-[10px] text-slate-500 font-normal">
+                        <span className="block text-[9px] text-slate-500 font-normal">
                           {params.cable_dimension || 'Not specified'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-slate-500">{lengthVal}m × ₹{cablePerMeter}</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold">₹{rawCableCost.toLocaleString('en-IN')}</td>
+                      <td className="px-3 py-1.5 text-right text-slate-500">{lengthVal}m × ₹{cablePerMeter}</td>
+                      <td className="px-3 py-1.5 text-right font-mono font-bold">₹{rawCableCost.toLocaleString('en-IN')}</td>
                     </tr>
                     <tr>
-                      <td className="px-4 py-3 font-semibold">
+                      <td className="px-3 py-1.5 font-semibold">
                         Connector 1
-                        <span className="block text-[10px] text-slate-500 font-normal">
+                        <span className="block text-[9px] text-slate-500 font-normal">
                           {params.connector1_name || 'Not specified'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-slate-500">Unit Price</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold">₹{c1Cost.toLocaleString('en-IN')}</td>
+                      <td className="px-3 py-1.5 text-right text-slate-500">Unit Price</td>
+                      <td className="px-3 py-1.5 text-right font-mono font-bold">₹{c1Cost.toLocaleString('en-IN')}</td>
                     </tr>
                     <tr>
-                      <td className="px-4 py-3 font-semibold">
+                      <td className="px-3 py-1.5 font-semibold">
                         Connector 2
-                        <span className="block text-[10px] text-slate-500 font-normal">
+                        <span className="block text-[9px] text-slate-500 font-normal">
                           {params.connector2_name || 'Not specified'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-slate-500">Unit Price</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold">₹{c2Cost.toLocaleString('en-IN')}</td>
+                      <td className="px-3 py-1.5 text-right text-slate-500">Unit Price</td>
+                      <td className="px-3 py-1.5 text-right font-mono font-bold">₹{c2Cost.toLocaleString('en-IN')}</td>
                     </tr>
                     <tr>
-                      <td className="px-4 py-3 font-semibold">Labour Cost</td>
-                      <td className="px-4 py-3 text-right text-slate-500">Assembly</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold">₹{labourCost.toLocaleString('en-IN')}</td>
+                      <td className="px-3 py-1.5 font-semibold">Labour Cost</td>
+                      <td className="px-3 py-1.5 text-right text-slate-500">Assembly</td>
+                      <td className="px-3 py-1.5 text-right font-mono font-bold">₹{labourCost.toLocaleString('en-IN')}</td>
                     </tr>
                     {batteryCost > 0 && (
                       <tr>
-                        <td className="px-4 py-3 font-semibold">
+                        <td className="px-3 py-1.5 font-semibold">
                           Battery
-                          <span className="block text-[10px] text-slate-500 font-normal">
+                          <span className="block text-[9px] text-slate-500 font-normal">
                             {params.battery_name || 'Battery'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right text-slate-500">Unit Price</td>
-                        <td className="px-4 py-3 text-right font-mono font-bold">₹{batteryCost.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-1.5 text-right text-slate-500">Unit Price</td>
+                        <td className="px-3 py-1.5 text-right font-mono font-bold">₹{batteryCost.toLocaleString('en-IN')}</td>
                       </tr>
                     )}
 
                     {/* Landing Cost Row (C10) */}
-                    <tr className="bg-sky-50 font-extrabold border-t-2 border-[#87C0CD]/50">
-                      <td className="px-4 py-3.5 text-[#113F67] uppercase tracking-wider text-xs">LANDING COST (C10)</td>
-                      <td className="px-4 py-3.5 text-right text-[10px] text-slate-500 font-normal">
-                        Sum of All Components
+                    <tr className="bg-sky-50 dark:bg-[#0f1b36] font-extrabold border-t-2 border-[#87C0CD]/50 dark:border-[#233554]">
+                      <td className="px-3 py-2 text-[#113F67] dark:text-[#38bdf8] uppercase tracking-wider text-[11px]">LANDING COST (C10)</td>
+                      <td className="px-3 py-2 text-right text-[9px] text-slate-500 dark:text-slate-400 font-normal">
+                        Sum of Components
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono text-sm text-[#113F67]">
+                      <td className="px-3 py-2 text-right font-mono text-xs text-[#113F67] dark:text-slate-100">
                         ₹{landingCost.toLocaleString('en-IN')}
                       </td>
                     </tr>
                     {/* Profit Margin % Row (C11 & C12) */}
                     <tr>
-                      <td className="px-4 py-3 font-semibold">PROFIT MARGIN % (C11)</td>
-                      <td className="px-4 py-3 text-right font-bold text-emerald-700">{marginPct}%</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700">
+                      <td className="px-3 py-1.5 font-semibold dark:text-slate-200">PROFIT MARGIN % (C11)</td>
+                      <td className="px-3 py-1.5 text-right font-bold text-emerald-700 dark:text-emerald-400">{marginPct}%</td>
+                      <td className="px-3 py-1.5 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400">
                         + ₹{profitMarginCost.toLocaleString('en-IN')}
                       </td>
                     </tr>
                     {/* Final Selling Price Row (C13) */}
-                    <tr className="bg-[#113F67] text-white font-extrabold">
-                      <td className="px-4 py-4 uppercase tracking-wider text-xs">CALCULATED SELLING PRICE (C13)</td>
-                      <td className="px-4 py-4 text-right text-[10px] text-slate-300 font-normal">
-                        Landing + Profit Margin
+                    <tr className="bg-[#113F67] dark:bg-[#0b1b38] text-white font-extrabold">
+                      <td className="px-3 py-2.5 uppercase tracking-wider text-[11px]">CALCULATED SELLING PRICE</td>
+                      <td className="px-3 py-2.5 text-right text-[9px] text-slate-300 font-normal">
+                        Landing + Margin
                       </td>
-                      <td className="px-4 py-4 text-right font-mono text-lg text-emerald-400">
+                      <td className="px-3 py-2.5 text-right font-mono text-base text-emerald-400">
                         ₹{Math.round(sellingPrice).toLocaleString('en-IN')}
                       </td>
                     </tr>
@@ -1569,7 +1591,7 @@ export function CableCalculator() {
               <button
                 onClick={handleSaveVariantAndSync}
                 disabled={saving || !selectedProductId}
-                className="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 transform hover:-translate-y-0.5 cursor-pointer"
+                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-2 transform hover:-translate-y-0.5 cursor-pointer"
               >
                 {saving ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
@@ -1586,26 +1608,24 @@ export function CableCalculator() {
         </div>
       ) : (
         /* Tab 2: Setup Overview Data Table & Controls Header Bar */
-        <div className="bg-white border border-[#87C0CD]/40 rounded-2xl p-6 space-y-6 shadow-sm">
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 border-b border-[#87C0CD]/30 pb-4">
-            <div>
-              <h2 className="text-base font-extrabold text-[#113F67] font-display">
-                Part Code Variant Configurations ({filteredConfigurations.length} of {configurations.length})
-              </h2>
-            </div>
+        <div className="bg-white dark:bg-[#152238] border border-[#87C0CD]/40 dark:border-[#233554] rounded-2xl px-2.5 py-3.5 sm:px-3.5 sm:py-4 space-y-3.5 shadow-sm w-full">
+          <div className="flex items-center justify-between gap-2 border-b border-[#87C0CD]/30 dark:border-[#233554] pb-3">
+            <h2 className="text-sm font-extrabold text-[#113F67] dark:text-slate-100 font-display whitespace-nowrap shrink-0">
+              Part Code Variant
+            </h2>
 
             {/* Data Table Filters & Excel Data Actions Bar */}
-            <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               {/* Product Name Filter Dropdown */}
-              <div className="flex items-center space-x-1.5">
-                <Filter className="w-3.5 h-3.5 text-[#226597]" />
+              <div className="flex items-center space-x-1 shrink-0">
+                <Filter className="w-3 h-3 text-[#226597] dark:text-[#38bdf8] shrink-0" />
                 <select
                   value={filterProductName}
                   onChange={(e) => {
                     setFilterProductName(e.target.value);
                     setFilterPartCode('ALL'); // Reset part code filter when product changes
                   }}
-                  className="px-3 py-1.5 bg-[#F3F9FB] border border-[#87C0CD]/40 rounded-xl text-xs font-bold text-[#113F67] focus:outline-none focus:border-[#226597]"
+                  className="px-2 py-1 bg-[#F3F9FB] dark:bg-[#0f1b36] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-[11px] font-bold text-[#113F67] dark:text-slate-200 focus:outline-none focus:border-[#226597] shrink-0"
                 >
                   <option value="ALL">All Products ({uniqueProductNames.length})</option>
                   {uniqueProductNames.map((name) => (
@@ -1617,12 +1637,12 @@ export function CableCalculator() {
               </div>
 
               {/* Part Code Filter Dropdown */}
-              <div className="flex items-center space-x-1.5">
-                <Tag className="w-3.5 h-3.5 text-[#226597]" />
+              <div className="flex items-center space-x-1 shrink-0">
+                <Tag className="w-3 h-3 text-[#226597] dark:text-[#38bdf8] shrink-0" />
                 <select
                   value={filterPartCode}
                   onChange={(e) => setFilterPartCode(e.target.value)}
-                  className="px-3 py-1.5 bg-[#F3F9FB] border border-[#87C0CD]/40 rounded-xl text-xs font-bold text-[#113F67] focus:outline-none focus:border-[#226597]"
+                  className="px-2 py-1 bg-[#F3F9FB] dark:bg-[#0f1b36] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-[11px] font-bold text-[#113F67] dark:text-slate-200 focus:outline-none focus:border-[#226597] shrink-0"
                 >
                   <option value="ALL">All Part Codes ({uniquePartCodes.length})</option>
                   {uniquePartCodes.map((code) => (
@@ -1641,25 +1661,25 @@ export function CableCalculator() {
                     setFilterProductName('ALL');
                     setFilterPartCode('ALL');
                   }}
-                  className="px-2.5 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
+                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg text-[11px] font-bold transition flex items-center space-x-1 cursor-pointer shrink-0"
                   title="Reset all filters"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3 h-3" />
                   <span>Reset</span>
                 </button>
               )}
 
               {/* Vertical Separator */}
-              <div className="h-6 w-px bg-[#87C0CD]/40 mx-1 hidden sm:block"></div>
+              <div className="h-4 w-px bg-[#87C0CD]/40 dark:bg-[#233554] mx-0.5 shrink-0"></div>
 
               {/* 1. Download Sample Excel Template */}
               <button
                 type="button"
                 onClick={handleDownloadSampleTemplate}
-                className="px-3.5 py-1.5 bg-[#E4F1F5] dark:bg-[#0f1b36] hover:bg-[#87C0CD]/30 text-[#113F67] dark:text-[#38bdf8] border border-[#87C0CD]/40 dark:border-[#233554] text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                className="px-2.5 py-1 bg-[#E4F1F5] dark:bg-[#0f1b36] hover:bg-[#87C0CD]/30 text-[#113F67] dark:text-[#38bdf8] border border-[#87C0CD]/40 dark:border-[#233554] text-[11px] font-bold rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs whitespace-nowrap shrink-0"
                 title="Download pre-formatted sample Excel import template"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <FileSpreadsheet className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                 <span>Sample Excel</span>
               </button>
 
@@ -1668,15 +1688,15 @@ export function CableCalculator() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={importingFile}
-                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs whitespace-nowrap shrink-0"
                 title="Upload Excel file to batch import cable prices"
               >
                 {importingFile ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <RefreshCw className="w-3 h-3 animate-spin" />
                 ) : (
-                  <UploadCloud className="w-3.5 h-3.5" />
+                  <UploadCloud className="w-3 h-3" />
                 )}
-                <span>{importingFile ? 'Analyzing...' : 'Import Excel'}</span>
+                <span>Import Excel</span>
               </button>
 
               {/* 3. Export Excel File */}
@@ -1684,31 +1704,29 @@ export function CableCalculator() {
                 type="button"
                 onClick={handleExportToExcel}
                 disabled={exportingExcel}
-                className="px-3.5 py-1.5 bg-[#226597] hover:bg-[#113F67] disabled:opacity-50 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                className="px-2.5 py-1 bg-[#226597] hover:bg-[#113F67] disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs whitespace-nowrap shrink-0"
                 title={`Export ${filteredConfigurations.length} ${filterProductName !== 'ALL' || filterPartCode !== 'ALL' ? 'filtered' : 'all'} record(s) to Excel with embedded visual images`}
               >
                 {exportingExcel ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <RefreshCw className="w-3 h-3 animate-spin" />
                 ) : (
-                  <Download className="w-3.5 h-3.5" />
+                  <Download className="w-3 h-3" />
                 )}
-                <span>
-                  {exportingExcel ? 'Generating...' : `Export Excel (${filteredConfigurations.length})`}
-                </span>
+                <span>Export ({filteredConfigurations.length})</span>
               </button>
 
               {/* 4. Toggle Excel Field Requirements Guide */}
               <button
                 type="button"
                 onClick={() => setShowImportGuide(!showImportGuide)}
-                className={`p-1.5 rounded-xl border text-xs font-bold transition flex items-center justify-center cursor-pointer ${
+                className={`p-1 rounded-lg border text-xs font-bold transition flex items-center justify-center cursor-pointer shrink-0 ${
                   showImportGuide
                     ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700'
                     : 'bg-[#F3F9FB] dark:bg-[#0b1329] text-[#226597] dark:text-[#38bdf8] border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#E4F1F5]'
                 }`}
                 title="Toggle Excel import field requirements guide"
               >
-                <HelpCircle className="w-4 h-4" />
+                <HelpCircle className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -1799,25 +1817,32 @@ export function CableCalculator() {
             </div>
           )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-[#113F67]">
-              <thead className="bg-[#F3F9FB] uppercase text-[10px] font-extrabold text-[#113F67] border-b border-[#87C0CD]/30">
+          <div className="w-full">
+            <table className="w-full table-fixed text-left text-xs text-[#113F67] dark:text-slate-200">
+              <colgroup>
+                <col className="w-[17%]" />
+                <col className="w-[16%]" />
+                <col className="w-[24%]" />
+                <col className="w-[21%]" />
+                <col className="w-[7%]" />
+                <col className="w-[8%]" />
+                <col className="w-[7%]" />
+              </colgroup>
+              <thead className="bg-[#F3F9FB] dark:bg-[#0f1b36] uppercase text-[9px] sm:text-[10px] tracking-wider font-extrabold text-[#113F67] dark:text-[#38bdf8] border-b border-[#87C0CD]/30 dark:border-[#233554]">
                 <tr>
-                  <th className="px-4 py-3 whitespace-nowrap">Product Name</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Part Code</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Header / Motor Spec</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Cable Spec & Cost</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Connectors & Extra Items</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Landing Price</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Margin %</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Final Selling Price</th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap">Actions</th>
+                  <th className="px-3 py-2.5">Product Name</th>
+                  <th className="px-3 py-2.5">Partcode</th>
+                  <th className="px-3 py-2.5">Motor Spec</th>
+                  <th className="px-3 py-2.5">Cable Spec</th>
+                  <th className="px-2 py-2.5 text-right whitespace-nowrap">Landing Price</th>
+                  <th className="px-2 pr-5 py-2.5 text-right whitespace-nowrap">Final Price</th>
+                  <th className="pl-4 pr-3 py-2.5 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#87C0CD]/20">
+              <tbody className="divide-y divide-[#87C0CD]/20 dark:divide-[#233554]">
                 {paginatedConfigurations.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="px-4 py-8 text-center text-slate-500">
+                    <td colSpan="7" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-xs">
                       {configurations.length === 0
                         ? 'No Part Code variant configurations saved yet. Select a product on the calculator tab to configure!'
                         : 'No variant configurations match the selected Product Name / Part Code dropdown filters.'}
@@ -1838,59 +1863,52 @@ export function CableCalculator() {
                     const landingVal = c.landing_cost ? Math.round(Number(c.landing_cost)) : computedLanding;
 
                     return (
-                      <tr key={c.id} className="hover:bg-[#F3F9FB]/60 transition">
-                        <td className="px-4 py-3.5 font-bold text-[#113F67] whitespace-nowrap">{c.product_name}</td>
-                        <td className="px-4 py-3.5 font-mono text-[#226597] font-bold whitespace-nowrap">
-                          <span className="px-2.5 py-1 bg-[#E4F1F5] rounded-lg border border-[#87C0CD]/40">
-                            {c.part_code || 'Unnamed Part Code'}
+                      <tr key={c.id} className="hover:bg-[#F3F9FB]/60 dark:hover:bg-[#0f1b36]/60 transition">
+                        <td className="px-3 py-2 align-middle">
+                          <span className="font-bold text-[#113F67] dark:text-slate-100 block text-[11px] leading-snug break-words">
+                            {c.product_name}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 space-y-0.5 min-w-[180px]">
-                          {c.frame_size && <span className="block text-[10px] text-slate-500 font-semibold">{c.frame_size}</span>}
-                          {c.motor_type && <span className="block text-[11px] font-bold text-[#113F67]">{c.motor_type}</span>}
-                        </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap">
-                          <span className="font-semibold">{c.cable_dimension || '-'}</span>
-                          <span className="block text-[10px] text-slate-500 font-mono">
-                            {c.cable_cost_per_meter ? `₹${c.cable_cost_per_meter}/m` : '-'}
+                        <td className="px-3 py-2 align-middle">
+                          <span className="px-1.5 py-0.5 bg-[#E4F1F5] dark:bg-[#0f1b36] rounded border border-[#87C0CD]/40 dark:border-[#233554] font-mono text-[10px] font-bold text-[#226597] dark:text-[#38bdf8] inline-block break-all tracking-tight">
+                            {c.part_code || '-'}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 space-y-0.5 min-w-[200px]">
-                          {c.connector1_name && <span className="block text-[11px]">{c.connector1_name}: ₹{c.connector1_cost}</span>}
-                          {c.connector2_name && <span className="block text-[11px]">{c.connector2_name}: ₹{c.connector2_cost}</span>}
-                          {Array.isArray(c.additional_components) &&
-                            c.additional_components.map((item, idx) => (
-                              <span key={idx} className="block text-[10px] text-amber-800 font-semibold">
-                                + {item.name}: ₹{item.cost}
-                              </span>
-                            ))}
+                        <td className="px-3 py-2 align-middle">
+                          <span className="block text-[11px] font-medium text-[#113F67] dark:text-slate-200 leading-snug break-words">
+                            {c.motor_type || '-'}
+                          </span>
                         </td>
-                        <td className="px-4 py-3.5 font-bold font-mono text-[#113F67] whitespace-nowrap">
+                        <td className="px-3 py-2 align-middle">
+                          <span className="block font-medium text-[#113F67] dark:text-slate-200 text-[11px] leading-snug break-words">
+                            {c.cable_dimension || '-'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 align-middle text-right font-bold font-mono text-[#113F67] dark:text-white whitespace-nowrap text-[11px]">
                           {landingVal > 0 ? `₹${landingVal.toLocaleString('en-IN')}` : '-'}
                         </td>
-                        <td className="px-4 py-3.5 font-bold text-emerald-700 whitespace-nowrap">{c.margin_percentage}%</td>
-                        <td className="px-4 py-3.5 font-bold font-mono text-emerald-700 whitespace-nowrap">
+                        <td className="px-2 pr-5 py-2 align-middle text-right font-bold font-mono text-emerald-600 dark:text-emerald-400 whitespace-nowrap text-xs">
                           {c.selling_price ? `₹${Number(c.selling_price).toLocaleString('en-IN')}` : '-'}
                         </td>
-                        <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end space-x-2">
+                        <td className="pl-4 pr-3 py-2 align-middle text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end space-x-1.5">
                             <button
                               onClick={() => {
                                 setSelectedProductId(String(c.product_id));
                                 loadVariantIntoForm(c);
                                 setActiveTab('calculator');
                               }}
-                              className="p-2 bg-[#226597] hover:bg-[#113F67] text-white rounded-xl transition cursor-pointer shadow-xs inline-flex items-center justify-center"
+                              className="p-1.5 bg-[#226597] hover:bg-[#113F67] text-white rounded-lg transition cursor-pointer shadow-xs inline-flex items-center justify-center shrink-0"
                               title="Edit in Calculator"
                             >
-                              <Edit3 className="w-4 h-4" />
+                              <Edit3 className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => handleDeleteVariant(c.id)}
-                              className="p-2 text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-xl transition cursor-pointer shadow-xs inline-flex items-center justify-center"
+                              className="p-1.5 text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition cursor-pointer shadow-xs inline-flex items-center justify-center shrink-0"
                               title="Delete variant setup"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </td>
@@ -1904,73 +1922,84 @@ export function CableCalculator() {
 
           {/* Datatable Pagination Footer */}
           {totalItems > 0 && (
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 border-t border-[#87C0CD]/30 dark:border-[#233554] text-xs">
-              {/* Entry Counter Summary */}
-              <div className="text-slate-500 dark:text-slate-400 font-medium">
-                Showing <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">{startIndex + 1}</span> to{' '}
-                <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">{endIndex}</span> of{' '}
-                <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">{totalItems}</span> entries
-                {totalItems < configurations.length && (
-                  <span className="text-slate-400 dark:text-slate-500 ml-1">
-                    (Filtered from {configurations.length} total)
-                  </span>
-                )}
-              </div>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pt-4 border-t border-[#87C0CD]/30 dark:border-[#233554] text-xs">
+              {/* Entry Counter Summary & Rows Per Page */}
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">
+                  Showing <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">{startIndex + 1}</span> to{' '}
+                  <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">{endIndex}</span> of{' '}
+                  <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">{totalItems}</span> entries
+                  {totalItems < configurations.length && (
+                    <span className="text-slate-400 dark:text-slate-500 ml-1">
+                      (Filtered from {configurations.length})
+                    </span>
+                  )}
+                </div>
 
-              {/* Page Controls & Rows Per Page Selector */}
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Items Per Page Dropdown */}
-                <div className="flex items-center space-x-1.5">
+                <div className="flex items-center space-x-1.5 whitespace-nowrap">
                   <span className="text-slate-500 dark:text-slate-400 font-medium text-[11px]">Rows per page:</span>
                   <select
                     value={itemsPerPage}
-                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                    className="px-2.5 py-1 bg-[#F3F9FB] dark:bg-[#0b1329] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-[#f8fafc] focus:outline-none focus:border-[#226597]"
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-1 bg-[#F3F9FB] dark:bg-[#0b1329] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-[#f8fafc] focus:outline-none focus:border-[#226597]"
                   >
                     <option value={5}>5</option>
                     <option value={10}>10</option>
                     <option value={25}>25</option>
                     <option value={50}>50</option>
+                    <option value={100}>100</option>
                   </select>
                 </div>
+              </div>
 
-                {/* Page Navigation Buttons */}
-                <div className="flex items-center space-x-1">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    className="p-1.5 rounded-lg border border-[#87C0CD]/40 dark:border-[#233554] bg-white dark:bg-[#0f1b36] text-[#113F67] dark:text-[#f8fafc] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F3F9FB] dark:hover:bg-[#1a2947] transition cursor-pointer"
-                    title="Previous Page"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
+              {/* Windowed Page Navigation Buttons */}
+              <div className="flex items-center space-x-1 shrink-0 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#87C0CD]/40 dark:border-[#233554] bg-white dark:bg-[#0f1b36] text-[#113F67] dark:text-[#f8fafc] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F3F9FB] dark:hover:bg-[#1a2947] transition cursor-pointer shrink-0"
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
 
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                {getPaginationPages(currentPage, totalPages).map((p, idx) => {
+                  if (p === '...') {
+                    return (
+                      <span key={`dots-${idx}`} className="w-7 h-8 flex items-center justify-center text-slate-400 dark:text-slate-500 font-bold shrink-0">
+                        ...
+                      </span>
+                    );
+                  }
+                  return (
                     <button
-                      key={pageNum}
+                      key={p}
                       type="button"
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
-                        currentPage === pageNum
+                      onClick={() => setCurrentPage(p)}
+                      className={`min-w-[32px] h-8 px-2 flex items-center justify-center text-xs font-bold rounded-lg transition cursor-pointer shrink-0 ${
+                        currentPage === p
                           ? 'bg-[#226597] text-white shadow-xs'
                           : 'bg-white dark:bg-[#0f1b36] text-[#113F67] dark:text-[#f8fafc] border border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#F3F9FB] dark:hover:bg-[#1a2947]'
                       }`}
                     >
-                      {pageNum}
+                      {p}
                     </button>
-                  ))}
+                  );
+                })}
 
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                    className="p-1.5 rounded-lg border border-[#87C0CD]/40 dark:border-[#233554] bg-white dark:bg-[#0f1b36] text-[#113F67] dark:text-[#f8fafc] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F3F9FB] dark:hover:bg-[#1a2947] transition cursor-pointer"
-                    title="Next Page"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#87C0CD]/40 dark:border-[#233554] bg-white dark:bg-[#0f1b36] text-[#113F67] dark:text-[#f8fafc] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F3F9FB] dark:hover:bg-[#1a2947] transition cursor-pointer shrink-0"
+                  title="Next Page"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
           )}

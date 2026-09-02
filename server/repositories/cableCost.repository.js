@@ -1,4 +1,5 @@
 import { query } from '../config/database.js';
+import { getBasePartCodeTemplate } from '../utils/partCode.js';
 
 export class CableCostRepository {
   formatRow(row) {
@@ -36,6 +37,34 @@ export class CableCostRepository {
     return row;
   }
 
+  applyModelLevelImageInheritance(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) return rows;
+
+    const modelImageMap = new Map();
+    rows.forEach((r) => {
+      const baseTemplate = getBasePartCodeTemplate(r.part_code);
+      const groupKey = `${r.product_id}__${baseTemplate}__${r.motor_type || ''}__${r.frame_size || ''}`.toLowerCase();
+      if (Array.isArray(r.image_urls) && r.image_urls.length > 0 && !modelImageMap.has(groupKey)) {
+        modelImageMap.set(groupKey, r.image_urls);
+      }
+    });
+
+    return rows.map((r) => {
+      const baseTemplate = getBasePartCodeTemplate(r.part_code);
+      const groupKey = `${r.product_id}__${baseTemplate}__${r.motor_type || ''}__${r.frame_size || ''}`.toLowerCase();
+      if ((!Array.isArray(r.image_urls) || r.image_urls.length === 0) && modelImageMap.has(groupKey)) {
+        const inherited = modelImageMap.get(groupKey);
+        return {
+          ...r,
+          image_urls: inherited,
+          image_url: JSON.stringify(inherited),
+          primary_image: inherited[0] || null,
+        };
+      }
+      return r;
+    });
+  }
+
   async findAll() {
     const sql = `
       SELECT pcc.*, p.product_name, p.model_number, p.slug as product_slug, p.price as current_product_price, c.name as category_name
@@ -46,7 +75,8 @@ export class CableCostRepository {
       ORDER BY p.product_name ASC, pcc.updated_at DESC
     `;
     const rows = await query(sql);
-    return rows.map((r) => this.formatRow(r));
+    const formatted = rows.map((r) => this.formatRow(r));
+    return this.applyModelLevelImageInheritance(formatted);
   }
 
   async findByProductId(productId) {
@@ -58,7 +88,8 @@ export class CableCostRepository {
       ORDER BY pcc.updated_at DESC
     `;
     const rows = await query(sql, [productId]);
-    return rows.map((r) => this.formatRow(r));
+    const formatted = rows.map((r) => this.formatRow(r));
+    return this.applyModelLevelImageInheritance(formatted);
   }
 
   async findById(id) {
@@ -150,8 +181,58 @@ export class CableCostRepository {
       ];
 
       await query(updateSql, updateParams);
+
+      // Automatically sync images across all sibling length variants of the same model template
+      if (imageUrl && data.product_id && data.part_code) {
+        try {
+          const baseTemplate = getBasePartCodeTemplate(data.part_code);
+          const siblings = await query(
+            'SELECT id, part_code, motor_type, frame_size FROM product_cable_costs WHERE product_id = ? AND id != ?',
+            [data.product_id, data.id]
+          );
+          const targetKey = `${baseTemplate}__${data.motor_type || ''}__${data.frame_size || ''}`.toLowerCase();
+          const siblingIds = siblings
+            .filter((s) => {
+              const sBase = getBasePartCodeTemplate(s.part_code);
+              const sKey = `${sBase}__${s.motor_type || ''}__${s.frame_size || ''}`.toLowerCase();
+              return sKey === targetKey;
+            })
+            .map((s) => s.id);
+
+          if (siblingIds.length > 0) {
+            const placeholders = siblingIds.map(() => '?').join(',');
+            await query(`UPDATE product_cable_costs SET image_url = ? WHERE id IN (${placeholders})`, [imageUrl, ...siblingIds]);
+          }
+        } catch (syncErr) {
+          console.warn('Could not sync images to sibling variants:', syncErr.message);
+        }
+      }
+
       return this.findById(data.id);
     } else {
+      // If new variant has no images uploaded, inherit from existing sibling variant of the same model
+      let effectiveImageUrl = imageUrl;
+      if (!effectiveImageUrl && data.product_id && data.part_code) {
+        try {
+          const baseTemplate = getBasePartCodeTemplate(data.part_code);
+          const siblings = await query(
+            'SELECT id, part_code, motor_type, frame_size, image_url FROM product_cable_costs WHERE product_id = ? AND image_url IS NOT NULL',
+            [data.product_id]
+          );
+          const targetKey = `${baseTemplate}__${data.motor_type || ''}__${data.frame_size || ''}`.toLowerCase();
+          const matchWithImg = siblings.find((s) => {
+            const sBase = getBasePartCodeTemplate(s.part_code);
+            const sKey = `${sBase}__${s.motor_type || ''}__${s.frame_size || ''}`.toLowerCase();
+            return sKey === targetKey && s.image_url;
+          });
+          if (matchWithImg) {
+            effectiveImageUrl = matchWithImg.image_url;
+          }
+        } catch (inheritErr) {
+          console.warn('Could not inherit images for new variant:', inheritErr.message);
+        }
+      }
+
       // Insert new variant record for product_id
       const insertSql = `
         INSERT INTO product_cable_costs (
@@ -181,11 +262,38 @@ export class CableCostRepository {
         additionalJson,
         sellingPrice,
         landingCost,
-        imageUrl,
+        effectiveImageUrl,
       ];
 
       const res = await query(insertSql, insertParams);
       const insertedId = res.insertId;
+
+      // Sync effectiveImageUrl to any other sibling variants if present
+      if (effectiveImageUrl && data.product_id && data.part_code) {
+        try {
+          const baseTemplate = getBasePartCodeTemplate(data.part_code);
+          const siblings = await query(
+            'SELECT id, part_code, motor_type, frame_size FROM product_cable_costs WHERE product_id = ? AND id != ?',
+            [data.product_id, insertedId]
+          );
+          const targetKey = `${baseTemplate}__${data.motor_type || ''}__${data.frame_size || ''}`.toLowerCase();
+          const siblingIds = siblings
+            .filter((s) => {
+              const sBase = getBasePartCodeTemplate(s.part_code);
+              const sKey = `${sBase}__${s.motor_type || ''}__${s.frame_size || ''}`.toLowerCase();
+              return sKey === targetKey;
+            })
+            .map((s) => s.id);
+
+          if (siblingIds.length > 0) {
+            const placeholders = siblingIds.map(() => '?').join(',');
+            await query(`UPDATE product_cable_costs SET image_url = ? WHERE id IN (${placeholders})`, [effectiveImageUrl, ...siblingIds]);
+          }
+        } catch (syncErr) {
+          console.warn('Could not sync images to sibling variants:', syncErr.message);
+        }
+      }
+
       return this.findById(insertedId);
     }
   }

@@ -1,5 +1,6 @@
 import { BaseRepository } from './base.repository.js';
 import { query } from '../config/database.js';
+import { getBasePartCodeTemplate } from '../utils/partCode.js';
 
 export class ProductRepository extends BaseRepository {
   constructor() {
@@ -62,7 +63,7 @@ export class ProductRepository extends BaseRepository {
       ORDER BY id ASC
     `;
     const rows = await query(sql, [productId]);
-    return rows.map((r) => {
+    const formatted = rows.map((r) => {
       let extra = [];
       if (typeof r.additional_components === 'string') {
         try {
@@ -72,6 +73,23 @@ export class ProductRepository extends BaseRepository {
         }
       } else if (Array.isArray(r.additional_components)) {
         extra = r.additional_components;
+      }
+
+      let urls = [];
+      if (typeof r.image_url === 'string') {
+        const trimmed = r.image_url.trim();
+        if (trimmed.startsWith('[')) {
+          try {
+            urls = JSON.parse(trimmed);
+            if (!Array.isArray(urls)) urls = [trimmed];
+          } catch (e) {
+            urls = [trimmed];
+          }
+        } else if (trimmed.length > 0) {
+          urls = [trimmed];
+        }
+      } else if (Array.isArray(r.image_url)) {
+        urls = r.image_url;
       }
 
       const len = Number(r.default_length) || 0;
@@ -90,9 +108,34 @@ export class ProductRepository extends BaseRepository {
       return {
         ...r,
         additional_components: extra,
+        image_urls: urls.filter(Boolean),
         landing_cost: Math.round(landingCost),
         calculated_price: sellingPrice,
       };
+    });
+
+    // Model-level image inheritance: if a variant has no images, inherit from sibling of the same model template
+    const modelImageMap = new Map();
+    formatted.forEach((v) => {
+      const baseTemplate = getBasePartCodeTemplate(v.part_code);
+      const groupKey = `${baseTemplate}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
+      if (Array.isArray(v.image_urls) && v.image_urls.length > 0 && !modelImageMap.has(groupKey)) {
+        modelImageMap.set(groupKey, v.image_urls);
+      }
+    });
+
+    return formatted.map((v) => {
+      const baseTemplate = getBasePartCodeTemplate(v.part_code);
+      const groupKey = `${baseTemplate}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
+      if ((!Array.isArray(v.image_urls) || v.image_urls.length === 0) && modelImageMap.has(groupKey)) {
+        const inherited = modelImageMap.get(groupKey);
+        return {
+          ...v,
+          image_urls: inherited,
+          image_url: JSON.stringify(inherited),
+        };
+      }
+      return v;
     });
   }
 
