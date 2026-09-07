@@ -395,9 +395,9 @@ export class CableCostService {
     });
 
     // Fetch existing variant configurations
-    const existingConfigs = await cableCostRepository.findAll();
+    const existingConfigs = await cableCostRepository.getAllForExport();
     const existingMap = new Map();
-    existingConfigs.forEach((c) => {
+    (Array.isArray(existingConfigs) ? existingConfigs : []).forEach((c) => {
       if (c.part_code) {
         existingMap.set(c.part_code.trim().toLowerCase(), c);
       }
