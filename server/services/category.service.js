@@ -8,6 +8,10 @@ export class CategoryService {
     return categoryRepository.findAll(params);
   }
 
+  async getNavigationTree() {
+    return categoryRepository.getNavigationTree();
+  }
+
   async getById(id) {
     const category = await categoryRepository.findById(id);
     if (!category) {

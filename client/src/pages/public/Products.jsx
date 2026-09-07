@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link as RouterLink } from 'react-router-dom';
-import { Search, Cpu, FileText, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Cpu, FileText, ArrowRight, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Header } from '../../components/common/Header';
 import { Footer } from '../../components/common/Footer';
 import { SEOManager } from '../../components/common/SEOManager';
@@ -84,8 +84,8 @@ export function Products() {
       <main className="flex-1 pt-28 pb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header Banner */}
-          <div className="mb-10 space-y-4">
-            <span className="text-xs font-extrabold uppercase tracking-widest text-[#226597] bg-[#E4F1F5] px-3 py-1 rounded-full border border-[#87C0CD]/40">
+          <div className="mb-8 space-y-3 text-center sm:text-left">
+            <span className="text-xs font-extrabold uppercase tracking-widest text-[#226597] bg-[#E4F1F5] px-3 py-1 rounded-full border border-[#87C0CD]/40 inline-block">
               Products Catalog
             </span>
             <h1 className="text-3xl sm:text-4xl font-extrabold font-display text-[#113F67]">
@@ -96,47 +96,48 @@ export function Products() {
             </p>
           </div>
 
-          {/* Search & Category Filter Bar */}
-          <div className="glass-panel p-4 rounded-2xl mb-10 flex flex-col md:flex-row items-center justify-between gap-4 border border-[#87C0CD]/40 shadow-sm">
-            {/* Category Tabs */}
-            <div className="flex items-center space-x-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 scrollbar-none">
-              <button
-                onClick={() => setSearchParams({})}
-                className={`px-4 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition ${
-                  !activeCategorySlug
-                    ? 'bg-[#226597] text-white shadow-sm'
-                    : 'bg-white text-[#113F67] hover:bg-[#E4F1F5] border border-[#87C0CD]/40'
-                }`}
-              >
-                All Categories
-              </button>
-
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSearchParams({ category: cat.slug })}
-                  className={`px-4 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition ${
-                    activeCategorySlug === cat.slug
-                      ? 'bg-[#226597] text-white shadow-sm'
-                      : 'bg-white text-[#113F67] hover:bg-[#E4F1F5] border border-[#87C0CD]/40'
-                  }`}
-                >
-                  {cat.name}
-                </button>
-              ))}
-            </div>
-
-            {/* Search Input */}
-            <div className="relative w-full md:w-64">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#226597]" />
+          {/* Clean Prominent Search Bar */}
+          <div className="glass-panel p-4 rounded-2xl mb-10 border border-[#87C0CD]/40 shadow-sm max-w-3xl">
+            <div className="relative w-full">
+              <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#226597]" />
               <input
                 type="text"
-                placeholder="Search products or model..."
+                placeholder="Search products by brand, part code, model number, or keyword..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white border border-[#87C0CD]/50 rounded-xl pl-9 pr-4 py-2 text-xs text-[#113F67] focus:outline-none focus:border-[#226597] shadow-sm"
+                className="w-full bg-white border border-[#87C0CD]/50 rounded-xl pl-11 pr-10 py-3 text-xs sm:text-sm text-[#113F67] placeholder:text-slate-400 focus:outline-none focus:border-[#226597] shadow-sm font-medium"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
+
+            {/* Active Category Filter Tag if navigated via category link */}
+            {activeCategorySlug && (
+              <div className="mt-3 pt-2.5 border-t border-[#87C0CD]/30 flex flex-wrap items-center justify-between text-xs text-slate-600 gap-2">
+                <span className="flex items-center space-x-1.5">
+                  <span>Filtered by Category:</span>
+                  <span className="font-bold text-[#226597] bg-[#E4F1F5] px-2.5 py-0.5 rounded-md border border-[#87C0CD]/40">
+                    {categories.find((c) => c.slug === activeCategorySlug)?.name || activeCategorySlug}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSearchParams({})}
+                  className="text-rose-600 hover:text-rose-800 text-[11px] font-bold hover:underline cursor-pointer flex items-center space-x-1"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Show All Products</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Product Grid */}

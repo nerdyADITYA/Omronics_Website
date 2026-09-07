@@ -14,6 +14,15 @@ export class CategoryController {
     }
   }
 
+  async getNavigationTree(req, res, next) {
+    try {
+      const tree = await categoryService.getNavigationTree();
+      return sendSuccess(res, tree, 'Navigation tree retrieved successfully.');
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async getById(req, res, next) {
     try {
       const category = await categoryService.getById(req.params.id);

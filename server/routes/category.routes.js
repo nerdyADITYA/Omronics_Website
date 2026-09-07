@@ -7,6 +7,7 @@ const router = Router();
 
 // Public Routes
 router.get('/', categoryController.getAll);
+router.get('/navigation-menu', categoryController.getNavigationTree);
 router.get('/slug/:slug', categoryController.getBySlug);
 router.get('/:id', categoryController.getById);
 
