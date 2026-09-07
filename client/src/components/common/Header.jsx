@@ -140,9 +140,9 @@ export function Header() {
                     {/* Hover Mega-Menu Dropdown */}
                     {isProductsHovered && navigationTree.length > 0 && (
                       <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                        <div className="w-[750px] max-w-[90vw] bg-white dark:bg-[#152238] rounded-2xl shadow-2xl border border-[#87C0CD]/40 dark:border-[#233554] overflow-hidden flex flex-row font-sans">
+                        <div className="w-[880px] max-w-[96vw] bg-white dark:bg-[#152238] rounded-2xl shadow-2xl border border-[#87C0CD]/40 dark:border-[#233554] overflow-hidden flex flex-row font-sans">
                           {/* Left Column: Categories List */}
-                          <div className="w-64 bg-[#F8FCFD] dark:bg-[#0f1b36] border-r border-[#87C0CD]/30 dark:border-[#233554] p-3 space-y-1 shrink-0">
+                          <div className="w-72 bg-[#F8FCFD] dark:bg-[#0f1b36] border-r border-[#87C0CD]/30 dark:border-[#233554] p-3 space-y-1 shrink-0">
                             <div className="px-2 py-1 flex items-center justify-between border-b border-[#87C0CD]/20 dark:border-[#233554] mb-2">
                               <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#226597] dark:text-[#38bdf8]">
                                 Product Categories
@@ -152,7 +152,7 @@ export function Header() {
                               </span>
                             </div>
 
-                            <div className="max-h-[360px] overflow-y-auto space-y-1 pr-1">
+                            <div className="max-h-[380px] overflow-y-auto space-y-1 pr-1">
                               {navigationTree.map((cat) => {
                                 const isCurrent =
                                   activeCategory && String(activeCategory.id) === String(cat.id);
@@ -161,13 +161,13 @@ export function Header() {
                                     key={cat.id}
                                     type="button"
                                     onMouseEnter={() => setHoveredCategoryId(cat.id)}
-                                    className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer text-left ${
+                                    className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer text-left ${
                                       isCurrent
                                         ? 'bg-[#226597] text-white shadow-xs'
                                         : 'text-[#113F67] dark:text-slate-200 hover:bg-[#E4F1F5] dark:hover:bg-[#1e2e4a]'
                                     }`}
                                   >
-                                    <span className="truncate pr-1">{cat.name}</span>
+                                    <span className="pr-1.5 leading-snug break-words">{cat.name}</span>
                                     <ChevronRight
                                       className={`w-3.5 h-3.5 shrink-0 ${
                                         isCurrent ? 'text-white' : 'text-slate-400'
@@ -180,7 +180,7 @@ export function Header() {
                           </div>
 
                           {/* Right Panel: Subproducts Grid */}
-                          <div className="flex-1 p-5 bg-white dark:bg-[#152238] flex flex-col justify-between min-h-[340px] max-h-[420px]">
+                          <div className="flex-1 p-5 bg-white dark:bg-[#152238] flex flex-col justify-between min-h-[360px] max-h-[440px]">
                             <div>
                               {/* Active Category Header */}
                               <div className="flex items-center justify-between border-b border-[#87C0CD]/30 dark:border-[#233554] pb-3 mb-3">
@@ -205,20 +205,20 @@ export function Header() {
 
                               {/* Subproducts Grid */}
                               {activeCategory?.subproducts && activeCategory.subproducts.length > 0 ? (
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-2 max-h-[260px] overflow-y-auto pr-1">
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 max-h-[300px] overflow-y-auto pr-1">
                                   {activeCategory.subproducts.map((prod) => (
                                     <RouterLink
                                       key={prod.id}
                                       to={`/products/${prod.slug}`}
                                       onClick={() => setIsProductsHovered(false)}
-                                      className="p-2 rounded-xl bg-[#F3F9FB]/60 dark:bg-[#0f1b36]/60 hover:bg-[#E4F1F5] dark:hover:bg-[#1e2e4a] border border-[#87C0CD]/30 dark:border-[#233554] hover:border-[#226597] transition flex items-center justify-between group cursor-pointer"
+                                      className="p-2.5 rounded-xl bg-[#F3F9FB]/60 dark:bg-[#0f1b36]/60 hover:bg-[#E4F1F5] dark:hover:bg-[#1e2e4a] border border-[#87C0CD]/30 dark:border-[#233554] hover:border-[#226597] transition flex items-center justify-between group cursor-pointer"
                                     >
-                                      <div className="flex flex-col min-w-0 pr-1">
-                                        <span className="text-xs font-bold text-[#113F67] dark:text-slate-100 group-hover:text-[#226597] dark:group-hover:text-[#38bdf8] truncate block">
+                                      <div className="flex flex-col min-w-0 pr-2 flex-1">
+                                        <span className="text-xs font-bold text-[#113F67] dark:text-slate-100 group-hover:text-[#226597] dark:group-hover:text-[#38bdf8] leading-snug break-words">
                                           {prod.product_name}
                                         </span>
                                         {prod.model_number && (
-                                          <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                                          <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate mt-0.5">
                                             {prod.model_number}
                                           </span>
                                         )}
