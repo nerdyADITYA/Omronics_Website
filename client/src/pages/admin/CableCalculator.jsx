@@ -197,39 +197,41 @@ export function CableCalculator() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Reset to Page 1 when filters or itemsPerPage change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterProductName, filterPartCode, itemsPerPage]);
+  // Server-Side Overview & Filter Options State
+  const [overviewConfigurations, setOverviewConfigurations] = useState([]);
+  const [overviewPagination, setOverviewPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [filterProductNames, setFilterProductNames] = useState([]);
+  const [filterPartCodes, setFilterPartCodes] = useState([]);
+  const [totalOverviewCount, setTotalOverviewCount] = useState(0);
 
-  // Derive unique product names for filter dropdown
-  const uniqueProductNames = Array.from(
-    new Set(configurations.map((c) => c.product_name).filter(Boolean))
-  ).sort();
+  // On-Demand Product Variants for Section 1 Interactive Calculator
+  const [productVariants, setProductVariants] = useState([]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
 
-  // Derive unique part codes for filter dropdown (filtered by selected product if set)
-  const uniquePartCodes = Array.from(
-    new Set(
-      configurations
-        .filter((c) => filterProductName === 'ALL' || c.product_name === filterProductName)
-        .map((c) => c.part_code)
-        .filter(Boolean)
-    )
-  ).sort();
-
-  // Filter configurations list based on dropdown selections
-  const filteredConfigurations = configurations.filter((c) => {
-    const matchProduct = filterProductName === 'ALL' || c.product_name === filterProductName;
-    const matchPartCode = filterPartCode === 'ALL' || c.part_code === filterPartCode;
-    return matchProduct && matchPartCode;
+  // Helper to derive distinct model base templates for the currently selected product only
+  const distinctModelVariants = [];
+  const seenBaseTemplates = new Set();
+  productVariants.forEach((v) => {
+    const baseTemplate = getBasePartCodeTemplate(v.part_code);
+    const groupKey = `${baseTemplate}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
+    if (!seenBaseTemplates.has(groupKey)) {
+      seenBaseTemplates.add(groupKey);
+      distinctModelVariants.push({
+        ...v,
+        base_template: baseTemplate,
+        model_group_key: groupKey,
+      });
+    }
   });
 
-  // Calculate Paginated Dataset
-  const totalItems = filteredConfigurations.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  const paginatedConfigurations = filteredConfigurations.slice(startIndex, endIndex);
+  // Available lengths for the active selected base model
+  const availableVariantsForModel = productVariants.filter((v) => {
+    const t = getBasePartCodeTemplate(v.part_code);
+    const key = `${t}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
+    return key === selectedModelKey;
+  });
+  availableVariantsForModel.sort((a, b) => getVariantLength(a) - getVariantLength(b));
 
   // Smart windowed pagination helper: returns an array with ellipsis (e.g. [1, 2, 3, 4, '...', 28])
   const getPaginationPages = (current, total) => {
@@ -273,6 +275,79 @@ export function CableCalculator() {
     image_urls: [],
   });
 
+  // On-demand fetch of part codes & variants for ONLY the selected product
+  const fetchProductVariants = async (productId, variantToLoadId = null) => {
+    if (!productId) return;
+    setLoadingVariants(true);
+    try {
+      const res = await api.get(`/cable-costs/product/${productId}`);
+      if (res.success && Array.isArray(res.data)) {
+        setProductVariants(res.data);
+        if (variantToLoadId) {
+          const target = res.data.find((v) => v.id === variantToLoadId);
+          if (target) {
+            loadVariantIntoForm(target, res.data);
+            return;
+          }
+        }
+        if (res.data.length > 0) {
+          loadVariantIntoForm(res.data[0], res.data);
+        } else {
+          resetToNewVariant(productId);
+        }
+      } else {
+        setProductVariants([]);
+        resetToNewVariant(productId);
+      }
+    } catch (err) {
+      setProductVariants([]);
+      resetToNewVariant(productId);
+    } finally {
+      setLoadingVariants(false);
+    }
+  };
+
+  // Fetch paginated overview records (strictly 10 items at a time)
+  const fetchOverviewData = async (
+    page = currentPage,
+    limit = itemsPerPage,
+    prodFilter = filterProductName,
+    partFilter = filterPartCode
+  ) => {
+    setOverviewLoading(true);
+    try {
+      const res = await api.get(
+        `/cable-costs?page=${page}&limit=${limit}&productName=${encodeURIComponent(prodFilter)}&partCode=${encodeURIComponent(partFilter)}`
+      );
+      if (res.success && res.data) {
+        setOverviewConfigurations(res.data);
+        if (res.pagination) {
+          setOverviewPagination(res.pagination);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load overview data', err);
+    } finally {
+      setOverviewLoading(false);
+    }
+  };
+
+  // Fetch lightweight filter dropdown options (product names & product-specific part codes)
+  const fetchFilterOptions = async (prodFilter = filterProductName) => {
+    try {
+      const res = await api.get(`/cable-costs/filter-options?productName=${encodeURIComponent(prodFilter)}`);
+      if (res.success && res.data) {
+        setFilterProductNames(res.data.productNames || []);
+        setFilterPartCodes(res.data.partCodes || []);
+        if (res.data.totalCount !== undefined) {
+          setTotalOverviewCount(res.data.totalCount);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load filter options', err);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -280,56 +355,28 @@ export function CableCalculator() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [prodRes, configRes] = await Promise.all([
-        api.get('/cable-costs/servo-products'),
-        api.get('/cable-costs'),
-      ]);
-
-      if (prodRes.success && prodRes.data) {
+      const prodRes = await api.get('/cable-costs/servo-products');
+      if (prodRes.success && prodRes.data && prodRes.data.length > 0) {
         setServoProducts(prodRes.data);
-        if (prodRes.data.length > 0 && !selectedProductId) {
-          setSelectedProductId(String(prodRes.data[0].id));
-        }
-      }
-
-      if (configRes.success && configRes.data) {
-        setConfigurations(configRes.data);
+        const initialProdId = String(prodRes.data[0].id);
+        setSelectedProductId(initialProdId);
+        await Promise.all([
+          fetchProductVariants(initialProdId),
+          fetchFilterOptions('ALL'),
+          fetchOverviewData(1, itemsPerPage, 'ALL', 'ALL'),
+        ]);
+      } else {
+        await Promise.all([
+          fetchFilterOptions('ALL'),
+          fetchOverviewData(1, itemsPerPage, 'ALL', 'ALL'),
+        ]);
       }
     } catch (err) {
-      setFeedback({ type: 'error', message: err.message || 'Failed to load cable calculator data.' });
+      setFeedback({ type: 'error', message: err.message || 'Failed to load initial data.' });
     } finally {
       setLoading(false);
     }
   };
-
-  // Filter part code variants available for currently selected product
-  const productVariants = configurations.filter(
-    (c) => String(c.product_id) === String(selectedProductId)
-  );
-
-  // Group into distinct base models (e.g. B107-xx.x and M107-xx.x)
-  const distinctModelVariants = [];
-  const seenBaseTemplates = new Set();
-  productVariants.forEach((v) => {
-    const baseTemplate = getBasePartCodeTemplate(v.part_code);
-    const groupKey = `${baseTemplate}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
-    if (!seenBaseTemplates.has(groupKey)) {
-      seenBaseTemplates.add(groupKey);
-      distinctModelVariants.push({
-        ...v,
-        base_template: baseTemplate,
-        model_group_key: groupKey,
-      });
-    }
-  });
-
-  // Available lengths for the active selected base model
-  const availableVariantsForModel = productVariants.filter((v) => {
-    const t = getBasePartCodeTemplate(v.part_code);
-    const key = `${t}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
-    return key === selectedModelKey;
-  });
-  availableVariantsForModel.sort((a, b) => getVariantLength(a) - getVariantLength(b));
 
   const resetToNewVariant = (productId = selectedProductId) => {
     setActiveVariantId(null);
@@ -356,7 +403,7 @@ export function CableCalculator() {
     });
   };
 
-  const loadVariantIntoForm = (variant) => {
+  const loadVariantIntoForm = (variant, siblingList = productVariants) => {
     setActiveVariantId(variant.id);
     const baseTemplate = getBasePartCodeTemplate(variant.part_code);
     const groupKey = `${baseTemplate}__${variant.motor_type || ''}__${variant.frame_size || ''}`.toLowerCase();
@@ -378,10 +425,9 @@ export function CableCalculator() {
       }
     }
 
-    // Model-level image fallback: if this specific length has no images, inherit from sibling variant of same model
-    if (urls.length === 0) {
-      const siblingWithImages = configurations.find((c) => {
-        if (String(c.product_id) !== String(variant.product_id)) return false;
+    // Model-level image fallback: if this specific length has no images, inherit from sibling within this product
+    if (urls.length === 0 && Array.isArray(siblingList)) {
+      const siblingWithImages = siblingList.find((c) => {
         const cBase = getBasePartCodeTemplate(c.part_code);
         const cKey = `${cBase}__${c.motor_type || ''}__${c.frame_size || ''}`.toLowerCase();
         return cKey === groupKey && (
@@ -576,15 +622,20 @@ export function CableCalculator() {
       const saveRes = await api.post('/cable-costs', payload);
       if (saveRes.success) {
         const savedPrice = Math.round(sellingPrice);
+        const newVariantId = saveRes.data?.id || activeVariantId;
 
         setFeedback({
           type: 'success',
           message: `Saved Part Code setup "${params.part_code}" with Variant Selling Price ₹${savedPrice.toLocaleString('en-IN')}!`,
         });
 
-        await loadData();
-        if (saveRes.data && saveRes.data.id) {
-          setActiveVariantId(saveRes.data.id);
+        await Promise.all([
+          fetchProductVariants(selectedProductId, newVariantId),
+          fetchFilterOptions(filterProductName),
+          fetchOverviewData(currentPage, itemsPerPage, filterProductName, filterPartCode),
+        ]);
+        if (newVariantId) {
+          setActiveVariantId(newVariantId);
         }
       }
     } catch (err) {
@@ -604,7 +655,11 @@ export function CableCalculator() {
       const res = await api.delete(`/cable-costs/${targetId}`);
       if (res.success) {
         setFeedback({ type: 'success', message: 'Variant setup deleted successfully.' });
-        await loadData();
+        await Promise.all([
+          fetchProductVariants(selectedProductId),
+          fetchFilterOptions(filterProductName),
+          fetchOverviewData(currentPage, itemsPerPage, filterProductName, filterPartCode),
+        ]);
         resetToNewVariant(selectedProductId);
       }
     } catch (err) {
@@ -640,18 +695,16 @@ export function CableCalculator() {
 
   // Filter-Aware Visual Excel Export Handler (Embeds Real Images into Cells!)
   const handleExportToExcel = async () => {
-    if (!filteredConfigurations || filteredConfigurations.length === 0) {
-      setFeedback({ type: 'error', message: 'No cable records available to export.' });
-      return;
-    }
-
     setExportingExcel(true);
     setFeedback(null);
 
     try {
       const response = await api.post(
         '/cable-costs/export-excel',
-        { configurations: filteredConfigurations },
+        {
+          productName: filterProductName !== 'ALL' ? filterProductName : undefined,
+          partCode: filterPartCode !== 'ALL' ? filterPartCode : undefined,
+        },
         { responseType: 'blob' }
       );
 
@@ -679,7 +732,7 @@ export function CableCalculator() {
 
       setFeedback({
         type: 'success',
-        message: `Successfully exported ${filteredConfigurations.length} cable variant setup(s) with embedded visual images to "${filename}".`,
+        message: `Successfully exported cable variant setup(s) with embedded visual images to "${filename}".`,
       });
     } catch (err) {
       setFeedback({ type: 'error', message: 'Failed to export visual Excel spreadsheet.' });
@@ -738,7 +791,11 @@ export function CableCalculator() {
         });
         setShowImportModal(false);
         setAnalysisResult(null);
-        await loadData();
+        await Promise.all([
+          fetchProductVariants(selectedProductId),
+          fetchFilterOptions('ALL'),
+          fetchOverviewData(1, itemsPerPage, 'ALL', 'ALL'),
+        ]);
       } else {
         setFeedback({ type: 'error', message: res.message || 'Failed to execute batch import.' });
       }
@@ -818,7 +875,7 @@ export function CableCalculator() {
             }`}
           >
             <Settings2 className="w-3.5 h-3.5" />
-            <span>Setup Overview ({configurations.length})</span>
+            <span>Setup Overview ({overviewPagination.total || totalOverviewCount})</span>
           </button>
         </div>
       </div>
@@ -875,12 +932,7 @@ export function CableCalculator() {
                       setSelectedProductId(prodId);
                       setSelectedModelKey('');
                       setActiveVariantId(null);
-                      const matchingConfigs = configurations.filter((c) => String(c.product_id) === String(prodId));
-                      if (matchingConfigs.length > 0) {
-                        loadVariantIntoForm(matchingConfigs[0]);
-                      } else {
-                        resetToNewVariant(prodId);
-                      }
+                      fetchProductVariants(prodId);
                     }}
                     className="w-full h-10 px-3 bg-[#F3F9FB] dark:bg-[#0f1b36] border border-[#87C0CD]/40 dark:border-[#233554] rounded-xl text-xs text-[#113F67] dark:text-slate-200 font-bold focus:outline-none focus:border-[#226597] truncate shadow-xs"
                   >
@@ -1622,13 +1674,17 @@ export function CableCalculator() {
                 <select
                   value={filterProductName}
                   onChange={(e) => {
-                    setFilterProductName(e.target.value);
+                    const val = e.target.value;
+                    setFilterProductName(val);
                     setFilterPartCode('ALL'); // Reset part code filter when product changes
+                    setCurrentPage(1);
+                    fetchFilterOptions(val);
+                    fetchOverviewData(1, itemsPerPage, val, 'ALL');
                   }}
                   className="px-2 py-1 bg-[#F3F9FB] dark:bg-[#0f1b36] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-[11px] font-bold text-[#113F67] dark:text-slate-200 focus:outline-none focus:border-[#226597] shrink-0"
                 >
-                  <option value="ALL">All Products ({uniqueProductNames.length})</option>
-                  {uniqueProductNames.map((name) => (
+                  <option value="ALL">All Products ({filterProductNames.length})</option>
+                  {filterProductNames.map((name) => (
                     <option key={name} value={name}>
                       {name}
                     </option>
@@ -1641,11 +1697,16 @@ export function CableCalculator() {
                 <Tag className="w-3 h-3 text-[#226597] dark:text-[#38bdf8] shrink-0" />
                 <select
                   value={filterPartCode}
-                  onChange={(e) => setFilterPartCode(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFilterPartCode(val);
+                    setCurrentPage(1);
+                    fetchOverviewData(1, itemsPerPage, filterProductName, val);
+                  }}
                   className="px-2 py-1 bg-[#F3F9FB] dark:bg-[#0f1b36] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-[11px] font-bold text-[#113F67] dark:text-slate-200 focus:outline-none focus:border-[#226597] shrink-0"
                 >
-                  <option value="ALL">All Part Codes ({uniquePartCodes.length})</option>
-                  {uniquePartCodes.map((code) => (
+                  <option value="ALL">All Part Codes ({filterPartCodes.length})</option>
+                  {filterPartCodes.map((code) => (
                     <option key={code} value={code}>
                       {code}
                     </option>
@@ -1660,6 +1721,9 @@ export function CableCalculator() {
                   onClick={() => {
                     setFilterProductName('ALL');
                     setFilterPartCode('ALL');
+                    setCurrentPage(1);
+                    fetchFilterOptions('ALL');
+                    fetchOverviewData(1, itemsPerPage, 'ALL', 'ALL');
                   }}
                   className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg text-[11px] font-bold transition flex items-center space-x-1 cursor-pointer shrink-0"
                   title="Reset all filters"
@@ -1705,14 +1769,14 @@ export function CableCalculator() {
                 onClick={handleExportToExcel}
                 disabled={exportingExcel}
                 className="px-2.5 py-1 bg-[#226597] hover:bg-[#113F67] disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs whitespace-nowrap shrink-0"
-                title={`Export ${filteredConfigurations.length} ${filterProductName !== 'ALL' || filterPartCode !== 'ALL' ? 'filtered' : 'all'} record(s) to Excel with embedded visual images`}
+                title={`Export ${overviewPagination.total || totalOverviewCount} ${filterProductName !== 'ALL' || filterPartCode !== 'ALL' ? 'filtered' : 'all'} record(s) to Excel with embedded visual images`}
               >
                 {exportingExcel ? (
                   <RefreshCw className="w-3 h-3 animate-spin" />
                 ) : (
                   <Download className="w-3 h-3" />
                 )}
-                <span>Export ({filteredConfigurations.length})</span>
+                <span>Export ({overviewPagination.total || totalOverviewCount})</span>
               </button>
 
               {/* 4. Toggle Excel Field Requirements Guide */}
@@ -1840,27 +1904,22 @@ export function CableCalculator() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#87C0CD]/20 dark:divide-[#233554]">
-                {paginatedConfigurations.length === 0 ? (
+                {overviewLoading ? (
+                  <tr>
+                    <td colSpan="7" className="px-4 py-12 text-center text-slate-500 dark:text-slate-400 text-xs">
+                      <RefreshCw className="w-6 h-6 text-[#226597] animate-spin mx-auto mb-2" />
+                      Loading page records...
+                    </td>
+                  </tr>
+                ) : overviewConfigurations.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-xs">
-                      {configurations.length === 0
-                        ? 'No Part Code variant configurations saved yet. Select a product on the calculator tab to configure!'
-                        : 'No variant configurations match the selected Product Name / Part Code dropdown filters.'}
+                      No variant configurations match the selected Product Name / Part Code dropdown filters.
                     </td>
                   </tr>
                 ) : (
-                  paginatedConfigurations.map((c) => {
-                    const len = Number(c.default_length) || 0;
-                    const cCost = Number(c.cable_cost_per_meter) || 0;
-                    const c1 = Number(c.connector1_cost) || 0;
-                    const c2 = Number(c.connector2_cost) || 0;
-                    const labour = Number(c.labour_cost) || 0;
-                    const battery = Number(c.battery_cost) || 0;
-                    const extra = Array.isArray(c.additional_components)
-                      ? c.additional_components.reduce((sum, item) => sum + (Number(item.cost) || 0), 0)
-                      : 0;
-                    const computedLanding = Math.round(len * cCost + c1 + c2 + labour + battery + extra);
-                    const landingVal = c.landing_cost ? Math.round(Number(c.landing_cost)) : computedLanding;
+                  overviewConfigurations.map((c) => {
+                    const landingVal = c.landing_cost ? Math.round(Number(c.landing_cost)) : 0;
 
                     return (
                       <tr key={c.id} className="hover:bg-[#F3F9FB]/60 dark:hover:bg-[#0f1b36]/60 transition">
@@ -1895,8 +1954,8 @@ export function CableCalculator() {
                             <button
                               onClick={() => {
                                 setSelectedProductId(String(c.product_id));
-                                loadVariantIntoForm(c);
                                 setActiveTab('calculator');
+                                fetchProductVariants(c.product_id, c.id);
                               }}
                               className="p-1.5 bg-[#226597] hover:bg-[#113F67] text-white rounded-lg transition cursor-pointer shadow-xs inline-flex items-center justify-center shrink-0"
                               title="Edit in Calculator"
@@ -1921,17 +1980,30 @@ export function CableCalculator() {
           </div>
 
           {/* Datatable Pagination Footer */}
-          {totalItems > 0 && (
+          {overviewPagination.total > 0 && (
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pt-4 border-t border-[#87C0CD]/30 dark:border-[#233554] text-xs">
               {/* Entry Counter Summary & Rows Per Page */}
               <div className="flex flex-wrap items-center gap-4">
                 <div className="text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">
-                  Showing <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">{startIndex + 1}</span> to{' '}
-                  <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">{endIndex}</span> of{' '}
-                  <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">{totalItems}</span> entries
-                  {totalItems < configurations.length && (
+                  Showing{' '}
+                  <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">
+                    {(overviewPagination.page - 1) * overviewPagination.limit + 1}
+                  </span>{' '}
+                  to{' '}
+                  <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">
+                    {Math.min(
+                      overviewPagination.total,
+                      (overviewPagination.page - 1) * overviewPagination.limit + overviewConfigurations.length
+                    )}
+                  </span>{' '}
+                  of{' '}
+                  <span className="font-extrabold text-[#113F67] dark:text-[#f8fafc]">
+                    {overviewPagination.total}
+                  </span>{' '}
+                  entries
+                  {overviewPagination.total < totalOverviewCount && (
                     <span className="text-slate-400 dark:text-slate-500 ml-1">
-                      (Filtered from {configurations.length})
+                      (Filtered from {totalOverviewCount})
                     </span>
                   )}
                 </div>
@@ -1941,8 +2013,10 @@ export function CableCalculator() {
                   <select
                     value={itemsPerPage}
                     onChange={(e) => {
-                      setItemsPerPage(Number(e.target.value));
+                      const newLimit = Number(e.target.value);
+                      setItemsPerPage(newLimit);
                       setCurrentPage(1);
+                      fetchOverviewData(1, newLimit, filterProductName, filterPartCode);
                     }}
                     className="px-2 py-1 bg-[#F3F9FB] dark:bg-[#0b1329] border border-[#87C0CD]/40 dark:border-[#233554] rounded-lg text-xs font-bold text-[#113F67] dark:text-[#f8fafc] focus:outline-none focus:border-[#226597]"
                   >
@@ -1959,15 +2033,19 @@ export function CableCalculator() {
               <div className="flex items-center space-x-1 shrink-0 overflow-x-auto">
                 <button
                   type="button"
-                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
+                  onClick={() => {
+                    const newPage = Math.max(1, currentPage - 1);
+                    setCurrentPage(newPage);
+                    fetchOverviewData(newPage, itemsPerPage, filterProductName, filterPartCode);
+                  }}
+                  disabled={overviewPagination.page === 1}
                   className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#87C0CD]/40 dark:border-[#233554] bg-white dark:bg-[#0f1b36] text-[#113F67] dark:text-[#f8fafc] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F3F9FB] dark:hover:bg-[#1a2947] transition cursor-pointer shrink-0"
                   title="Previous Page"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
 
-                {getPaginationPages(currentPage, totalPages).map((p, idx) => {
+                {getPaginationPages(overviewPagination.page, overviewPagination.totalPages).map((p, idx) => {
                   if (p === '...') {
                     return (
                       <span key={`dots-${idx}`} className="w-7 h-8 flex items-center justify-center text-slate-400 dark:text-slate-500 font-bold shrink-0">
@@ -1979,9 +2057,12 @@ export function CableCalculator() {
                     <button
                       key={p}
                       type="button"
-                      onClick={() => setCurrentPage(p)}
+                      onClick={() => {
+                        setCurrentPage(p);
+                        fetchOverviewData(p, itemsPerPage, filterProductName, filterPartCode);
+                      }}
                       className={`min-w-[32px] h-8 px-2 flex items-center justify-center text-xs font-bold rounded-lg transition cursor-pointer shrink-0 ${
-                        currentPage === p
+                        overviewPagination.page === p
                           ? 'bg-[#226597] text-white shadow-xs'
                           : 'bg-white dark:bg-[#0f1b36] text-[#113F67] dark:text-[#f8fafc] border border-[#87C0CD]/40 dark:border-[#233554] hover:bg-[#F3F9FB] dark:hover:bg-[#1a2947]'
                       }`}
@@ -1993,8 +2074,12 @@ export function CableCalculator() {
 
                 <button
                   type="button"
-                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
+                  onClick={() => {
+                    const newPage = Math.min(overviewPagination.totalPages, currentPage + 1);
+                    setCurrentPage(newPage);
+                    fetchOverviewData(newPage, itemsPerPage, filterProductName, filterPartCode);
+                  }}
+                  disabled={overviewPagination.page === overviewPagination.totalPages}
                   className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#87C0CD]/40 dark:border-[#233554] bg-white dark:bg-[#0f1b36] text-[#113F67] dark:text-[#f8fafc] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F3F9FB] dark:hover:bg-[#1a2947] transition cursor-pointer shrink-0"
                   title="Next Page"
                 >

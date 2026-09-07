@@ -107,8 +107,16 @@ export class CableCostService {
     return rows;
   }
 
-  async getAllConfigurations() {
-    return cableCostRepository.findAll();
+  async getAllConfigurations(params = {}) {
+    return cableCostRepository.findAll(params);
+  }
+
+  async getFilterOptions(productName = 'ALL') {
+    return cableCostRepository.getFilterOptions(productName);
+  }
+
+  async getAllForExport(params = {}) {
+    return cableCostRepository.getAllForExport(params);
   }
 
   async getByProductId(productId) {

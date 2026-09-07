@@ -3,6 +3,7 @@ import multer from 'multer';
 import {
   getServoProducts,
   getAllConfigurations,
+  getFilterOptions,
   getByProductId,
   saveConfiguration,
   deleteConfiguration,
@@ -21,6 +22,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.use(verifyToken);
 
 router.get('/servo-products', getServoProducts);
+router.get('/filter-options', getFilterOptions);
 router.get('/', getAllConfigurations);
 router.get('/download-template', downloadSampleTemplate);
 router.post('/export-excel', exportExcel);

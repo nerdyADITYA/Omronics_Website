@@ -65,16 +65,135 @@ export class CableCostRepository {
     });
   }
 
-  async findAll() {
+  /**
+   * Paginated & lightweight Cable Cost overview list query
+   * Only selects the displayed columns (product_name, part_code, motor_type, frame_size, cable_dimension, landing_cost, selling_price)
+   */
+  async findAll({
+    page = 1,
+    limit = 10,
+    offset = 0,
+    productName = 'ALL',
+    partCode = 'ALL',
+  } = {}) {
+    const whereClauses = ['p.deleted_at IS NULL'];
+    const params = [];
+
+    if (productName && productName !== 'ALL') {
+      whereClauses.push('p.product_name = ?');
+      params.push(productName);
+    }
+
+    if (partCode && partCode !== 'ALL') {
+      whereClauses.push('pcc.part_code = ?');
+      params.push(partCode);
+    }
+
+    const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
+
+    const sql = `
+      SELECT pcc.id, pcc.product_id, pcc.part_code, pcc.motor_type, pcc.frame_size,
+             pcc.cable_dimension, pcc.landing_cost, pcc.selling_price, pcc.updated_at,
+             p.product_name, p.model_number, p.slug as product_slug
+      FROM product_cable_costs pcc
+      JOIN products p ON pcc.product_id = p.id
+      ${whereSql}
+      ORDER BY p.product_name ASC, pcc.updated_at DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    const countSql = `
+      SELECT COUNT(*) as total
+      FROM product_cable_costs pcc
+      JOIN products p ON pcc.product_id = p.id
+      ${whereSql}
+    `;
+
+    const rows = await query(sql, [...params, limit, offset]);
+    const countRes = await query(countSql, params);
+    const total = Number(countRes[0]?.total || 0);
+
+    return {
+      data: rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  /**
+   * Lightweight filter options query for dropdowns
+   */
+  async getFilterOptions(productName = 'ALL') {
+    const productsSql = `
+      SELECT DISTINCT p.product_name
+      FROM product_cable_costs pcc
+      JOIN products p ON pcc.product_id = p.id
+      WHERE p.deleted_at IS NULL
+      ORDER BY p.product_name ASC
+    `;
+    const productRows = await query(productsSql);
+
+    let partCodesSql = `
+      SELECT DISTINCT pcc.part_code
+      FROM product_cable_costs pcc
+      JOIN products p ON pcc.product_id = p.id
+      WHERE p.deleted_at IS NULL
+    `;
+    const partParams = [];
+    if (productName && productName !== 'ALL') {
+      partCodesSql += ' AND p.product_name = ?';
+      partParams.push(productName);
+    }
+    partCodesSql += ' ORDER BY pcc.part_code ASC';
+
+    const partRows = await query(partCodesSql, partParams);
+
+    const totalCountSql = `
+      SELECT COUNT(*) as total
+      FROM product_cable_costs pcc
+      JOIN products p ON pcc.product_id = p.id
+      WHERE p.deleted_at IS NULL
+    `;
+    const totalRes = await query(totalCountSql);
+
+    return {
+      productNames: productRows.map((r) => r.product_name).filter(Boolean),
+      partCodes: partRows.map((r) => r.part_code).filter(Boolean),
+      totalCount: Number(totalRes[0]?.total || 0),
+    };
+  }
+
+  /**
+   * Full data query specifically for Excel Export
+   */
+  async getAllForExport({ productName = 'ALL', partCode = 'ALL' } = {}) {
+    const whereClauses = ['p.deleted_at IS NULL'];
+    const params = [];
+
+    if (productName && productName !== 'ALL') {
+      whereClauses.push('p.product_name = ?');
+      params.push(productName);
+    }
+
+    if (partCode && partCode !== 'ALL') {
+      whereClauses.push('pcc.part_code = ?');
+      params.push(partCode);
+    }
+
+    const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
     const sql = `
       SELECT pcc.*, p.product_name, p.model_number, p.slug as product_slug, p.price as current_product_price, c.name as category_name
       FROM product_cable_costs pcc
       JOIN products p ON pcc.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
-      WHERE p.deleted_at IS NULL
+      ${whereSql}
       ORDER BY p.product_name ASC, pcc.updated_at DESC
     `;
-    const rows = await query(sql);
+    const rows = await query(sql, params);
     const formatted = rows.map((r) => this.formatRow(r));
     return this.applyModelLevelImageInheritance(formatted);
   }

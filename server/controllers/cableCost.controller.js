@@ -12,10 +12,37 @@ export async function getServoProducts(req, res) {
 
 export async function getAllConfigurations(req, res) {
   try {
-    const configs = await cableCostService.getAllConfigurations();
-    return sendSuccess(res, configs, 'Cable cost configurations retrieved successfully.');
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const offset = (page - 1) * limit;
+    const productName = req.query.productName || 'ALL';
+    const partCode = req.query.partCode || 'ALL';
+
+    const result = await cableCostService.getAllConfigurations({
+      page,
+      limit,
+      offset,
+      productName,
+      partCode,
+    });
+    return res.json({
+      success: true,
+      data: result.data,
+      pagination: result.pagination,
+      message: 'Cable cost configurations retrieved successfully.',
+    });
   } catch (err) {
     return sendError(res, err.message || 'Failed to fetch cable cost configurations.', err.statusCode || 500);
+  }
+}
+
+export async function getFilterOptions(req, res) {
+  try {
+    const productName = req.query.productName || 'ALL';
+    const options = await cableCostService.getFilterOptions(productName);
+    return sendSuccess(res, options, 'Filter options retrieved successfully.');
+  } catch (err) {
+    return sendError(res, err.message || 'Failed to fetch filter options.', err.statusCode || 500);
   }
 }
 
@@ -71,8 +98,12 @@ export async function downloadSampleTemplate(req, res) {
 
 export async function exportExcel(req, res) {
   try {
-    const { configurations = [] } = req.body;
-    const buffer = await cableCostService.generateVisualExcelExport(configurations);
+    const { configurations = [], productName = 'ALL', partCode = 'ALL' } = req.body;
+    let dataToExport = configurations;
+    if (!Array.isArray(dataToExport) || dataToExport.length === 0) {
+      dataToExport = await cableCostService.getAllForExport({ productName, partCode });
+    }
+    const buffer = await cableCostService.generateVisualExcelExport(dataToExport);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="servo_cables_export.xlsx"');
     return res.send(buffer);

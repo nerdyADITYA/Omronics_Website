@@ -15,13 +15,33 @@ export function DataTable({
   title = 'Records',
   loading = false,
 }) {
+  const total = Number(pagination?.total || data.length || 0);
+  const page = Number(pagination?.page || 1);
+  const limit = Number(pagination?.limit || 10);
+  const totalPages = Number(pagination?.totalPages || Math.ceil(total / limit) || 1);
+  const startIndex = (page - 1) * limit;
+  const endIndex = Math.min(startIndex + limit, total);
+
+  const getPaginationPages = (current, total) => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    if (current <= 4) {
+      return [1, 2, 3, 4, 5, '...', total];
+    }
+    if (current >= total - 3) {
+      return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+    }
+    return [1, '...', current - 1, current, current + 1, '...', total];
+  };
+
   return (
     <div className="bg-white border border-[#87C0CD]/40 rounded-2xl shadow-sm overflow-hidden font-sans">
       {/* Header Bar */}
       <div className="p-4 md:p-6 border-b border-[#87C0CD]/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-[#113F67] font-display">{title}</h2>
-          <p className="text-xs text-slate-500 font-medium">Total {pagination.total || data.length} items found</p>
+          <p className="text-xs text-slate-500 font-medium">Total {total} items found</p>
         </div>
 
         <div className="flex items-center space-x-3">
@@ -139,24 +159,53 @@ export function DataTable({
       </div>
 
       {/* Pagination Footer */}
-      {pagination && pagination.totalPages > 1 && (
-        <div className="p-4 border-t border-[#87C0CD]/30 bg-[#F3F9FB] flex items-center justify-between">
-          <span className="text-xs text-slate-500 font-medium">
-            Page {pagination.page} of {pagination.totalPages}
-          </span>
+      {total > 0 && (
+        <div className="p-4 border-t border-[#87C0CD]/30 bg-[#F3F9FB] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+          <div className="text-slate-500 font-medium whitespace-nowrap">
+            Showing <span className="font-extrabold text-[#113F67]">{startIndex + 1}</span> to{' '}
+            <span className="font-extrabold text-[#113F67]">{endIndex}</span> of{' '}
+            <span className="font-extrabold text-[#113F67]">{total}</span> items
+          </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1 shrink-0 overflow-x-auto">
             <button
-              disabled={pagination.page <= 1}
-              onClick={() => onPageChange(pagination.page - 1)}
-              className="p-1.5 bg-white border border-[#87C0CD]/40 hover:bg-[#E4F1F5] disabled:opacity-40 text-[#113F67] rounded-lg transition shadow-xs"
+              disabled={page <= 1}
+              onClick={() => onPageChange && onPageChange(page - 1)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#87C0CD]/40 bg-white text-[#113F67] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#E4F1F5] transition cursor-pointer shrink-0"
+              title="Previous Page"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
+
+            {getPaginationPages(page, totalPages).map((p, idx) => {
+              if (p === '...') {
+                return (
+                  <span key={`dots-${idx}`} className="w-7 h-8 flex items-center justify-center text-slate-400 font-bold shrink-0">
+                    ...
+                  </span>
+                );
+              }
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => onPageChange && onPageChange(p)}
+                  className={`min-w-[32px] h-8 px-2 flex items-center justify-center text-xs font-bold rounded-lg transition cursor-pointer shrink-0 ${
+                    page === p
+                      ? 'bg-[#226597] text-white shadow-xs'
+                      : 'bg-white text-[#113F67] border border-[#87C0CD]/40 hover:bg-[#E4F1F5]'
+                  }`}
+                >
+                  {p}
+                </button>
+              );
+            })}
+
             <button
-              disabled={pagination.page >= pagination.totalPages}
-              onClick={() => onPageChange(pagination.page + 1)}
-              className="p-1.5 bg-white border border-[#87C0CD]/40 hover:bg-[#E4F1F5] disabled:opacity-40 text-[#113F67] rounded-lg transition shadow-xs"
+              disabled={page >= totalPages}
+              onClick={() => onPageChange && onPageChange(page + 1)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#87C0CD]/40 bg-white text-[#113F67] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#E4F1F5] transition cursor-pointer shrink-0"
+              title="Next Page"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
