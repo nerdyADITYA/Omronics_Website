@@ -10,6 +10,7 @@ import enquiryRoutes from './enquiry.routes.js';
 import uploadRoutes from './upload.routes.js';
 import settingsRoutes from './settings.routes.js';
 import cableCostRoutes from './cableCost.routes.js';
+import subProductRoutes from './subProduct.routes.js';
 import seoController from '../controllers/seo.controller.js';
 
 const router = Router();
@@ -27,6 +28,7 @@ router.get('/health', (req, res) => {
 router.use('/auth', authRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/products', productRoutes);
+router.use('/sub-products', subProductRoutes);
 router.use('/services', serviceRoutes);
 router.use('/industries', industryRoutes);
 router.use('/clients', clientRoutes);

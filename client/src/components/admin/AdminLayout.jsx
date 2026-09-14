@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Calculator,
+  Layers,
   Sun,
   Moon,
 } from 'lucide-react';
@@ -50,6 +51,7 @@ function AdminLayoutContent() {
   const navItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Products', path: '/admin/products', icon: Package },
+    { name: 'Sub-Products', path: '/admin/sub-products', icon: Layers },
     { name: 'Cable Calculator', path: '/admin/cable-calculator', icon: Calculator },
     { name: 'Categories', path: '/admin/categories', icon: FolderTree },
     { name: 'Services', path: '/admin/services', icon: Wrench },
@@ -210,6 +212,25 @@ function AdminLayoutContent() {
 
       {/* Main Content Viewport */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        {/* Active Maintenance Mode Alert Banner */}
+        {Boolean(settings?.is_maintenance_mode) && (
+          <div className="bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-white px-6 py-2.5 flex items-center justify-between shadow-md text-xs font-bold tracking-wide animate-fade-in z-20">
+            <div className="flex items-center space-x-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+              </span>
+              <span>⚠️ SYSTEM ALERT: Website Maintenance Mode is currently ACTIVE. Public visitors see the maintenance screen.</span>
+            </div>
+            <button
+              onClick={() => navigate('/admin/dashboard')}
+              className="px-3 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg border border-white/30 text-[11px] font-extrabold transition cursor-pointer"
+            >
+              Manage Status
+            </button>
+          </div>
+        )}
+
         {/* Top Header Bar with Light/Dark Mode Toggle */}
         <header className={`px-8 py-4 border-b ${isDark ? 'bg-[#152238] border-[#233554] text-[#f8fafc]' : 'bg-white border-[#87C0CD]/30 text-[#113F67]'} flex items-center justify-between sticky top-0 z-10 transition-colors duration-300 shadow-xs`}>
           <div className="flex items-center space-x-3">

@@ -11,12 +11,11 @@ export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileProductsOpen, setMobileProductsOpen] = useState(false);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
-  const location = useLocation();
-
   // Mega-menu navigation tree state
   const [navigationTree, setNavigationTree] = useState([]);
   const [hoveredCategoryId, setHoveredCategoryId] = useState(null);
   const [isProductsHovered, setIsProductsHovered] = useState(false);
+  const [openProductDropdownId, setOpenProductDropdownId] = useState(null);
   const hoverTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -205,26 +204,91 @@ export function Header() {
 
                               {/* Subproducts Grid */}
                               {activeCategory?.subproducts && activeCategory.subproducts.length > 0 ? (
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                                <div className="grid grid-cols-2 gap-3 max-h-[310px] overflow-y-auto pr-1">
                                   {activeCategory.subproducts.map((prod) => (
-                                    <RouterLink
+                                    <div
                                       key={prod.id}
-                                      to={`/products/${prod.slug}`}
-                                      onClick={() => setIsProductsHovered(false)}
-                                      className="p-2.5 rounded-xl bg-[#F3F9FB]/60 dark:bg-[#0f1b36]/60 hover:bg-[#E4F1F5] dark:hover:bg-[#1e2e4a] border border-[#87C0CD]/30 dark:border-[#233554] hover:border-[#226597] transition flex items-center justify-between group cursor-pointer"
+                                      className="p-2.5 rounded-xl bg-[#F3F9FB]/70 dark:bg-[#0f1b36]/70 hover:bg-[#E4F1F5] dark:hover:bg-[#1e2e4a] border border-[#87C0CD]/30 dark:border-[#233554] hover:border-[#226597] transition flex flex-col justify-between group"
                                     >
-                                      <div className="flex flex-col min-w-0 pr-2 flex-1">
-                                        <span className="text-xs font-bold text-[#113F67] dark:text-slate-100 group-hover:text-[#226597] dark:group-hover:text-[#38bdf8] leading-snug break-words">
-                                          {prod.product_name}
-                                        </span>
-                                        {prod.model_number && (
-                                          <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                                            {prod.model_number}
+                                      <div className="flex items-start justify-between">
+                                        <RouterLink
+                                          to={`/products/${prod.slug}`}
+                                          onClick={() => setIsProductsHovered(false)}
+                                          className="flex-1 min-w-0 pr-1 group/link"
+                                        >
+                                          <span className="text-xs font-bold text-[#113F67] dark:text-slate-100 group-hover/link:text-[#226597] dark:group-hover/link:text-[#38bdf8] leading-snug break-words">
+                                            {prod.product_name}
                                           </span>
-                                        )}
+                                          {prod.model_number && (
+                                            <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 block mt-0.5">
+                                              {prod.model_number}
+                                            </span>
+                                          )}
+                                        </RouterLink>
+                                        <RouterLink
+                                          to={`/products/${prod.slug}`}
+                                          onClick={() => setIsProductsHovered(false)}
+                                          className="p-0.5 text-slate-400 group-hover:text-[#226597] dark:group-hover:text-[#38bdf8] shrink-0"
+                                        >
+                                          <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                                        </RouterLink>
                                       </div>
-                                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#226597] dark:group-hover:text-[#38bdf8] shrink-0 group-hover:translate-x-0.5 transition-transform" />
-                                    </RouterLink>
+
+                                      {/* Sub-Products / Series Models Dropdown List */}
+                                      {Array.isArray(prod.sub_products) && prod.sub_products.length > 0 && (
+                                        <div className="mt-2 pt-1.5 border-t border-[#87C0CD]/20 dark:border-[#233554]">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setOpenProductDropdownId(
+                                                openProductDropdownId === prod.id ? null : prod.id
+                                              );
+                                            }}
+                                            className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#111c33] hover:bg-[#E4F1F5] dark:hover:bg-[#1e2e4a] border border-[#87C0CD]/40 dark:border-[#233554] flex items-center justify-between text-[11px] font-bold text-[#226597] dark:text-[#38bdf8] transition shadow-2xs group/btn cursor-pointer"
+                                          >
+                                            <div className="flex items-center space-x-1.5 truncate">
+                                              <Layers className="w-3.5 h-3.5 shrink-0" />
+                                              <span className="truncate">
+                                                Sub-Products ({prod.sub_products.length})
+                                              </span>
+                                            </div>
+                                            <ChevronDown
+                                              className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${
+                                                openProductDropdownId === prod.id ? 'rotate-180' : ''
+                                              }`}
+                                            />
+                                          </button>
+
+                                          {/* Dropdown list of Subproducts */}
+                                          {openProductDropdownId === prod.id && (
+                                            <div className="mt-1.5 p-1 bg-white dark:bg-[#0c1527] rounded-xl border border-[#87C0CD]/50 dark:border-[#233554] shadow-md space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-150 max-h-44 overflow-y-auto">
+                                              {prod.sub_products.map((sp) => (
+                                                <RouterLink
+                                                  key={sp.id}
+                                                  to={`/products/${prod.slug}?series=${sp.slug}`}
+                                                  onClick={() => setIsProductsHovered(false)}
+                                                  className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#113F67] dark:text-slate-200 hover:bg-[#E4F1F5] dark:hover:bg-[#1e2e4a] hover:text-[#226597] dark:hover:text-[#38bdf8] transition group/sp"
+                                                >
+                                                  <div className="flex items-center space-x-1.5 truncate pr-2">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#226597] dark:bg-[#38bdf8] shrink-0" />
+                                                    <span className="truncate">{sp.name}</span>
+                                                  </div>
+                                                  <div className="flex items-center space-x-1 shrink-0">
+                                                    {sp.model_code && (
+                                                      <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                                                        {sp.model_code}
+                                                      </span>
+                                                    )}
+                                                    <ChevronRight className="w-3 h-3 text-slate-400 group-hover/sp:text-[#226597] dark:group-hover/sp:text-[#38bdf8] group-hover/sp:translate-x-0.5 transition-transform" />
+                                                  </div>
+                                                </RouterLink>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
                                   ))}
                                 </div>
                               ) : (
@@ -336,14 +400,29 @@ export function Header() {
                             {cat.subproducts && cat.subproducts.length > 0 ? (
                               <div className="space-y-1 pl-2">
                                 {cat.subproducts.map((p) => (
-                                  <RouterLink
-                                    key={p.id}
-                                    to={`/products/${p.slug}`}
-                                    onClick={() => setMobileOpen(false)}
-                                    className="block px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-[#E4F1F5] dark:hover:bg-[#1e2e4a] hover:text-[#226597]"
-                                  >
-                                    {p.product_name}
-                                  </RouterLink>
+                                  <div key={p.id} className="space-y-1">
+                                    <RouterLink
+                                      to={`/products/${p.slug}`}
+                                      onClick={() => setMobileOpen(false)}
+                                      className="block px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-[#E4F1F5] dark:hover:bg-[#1e2e4a] hover:text-[#226597]"
+                                    >
+                                      {p.product_name}
+                                    </RouterLink>
+                                    {Array.isArray(p.sub_products) && p.sub_products.length > 0 && (
+                                      <div className="pl-3 py-0.5 space-y-0.5 border-l-2 border-[#87C0CD]/30 dark:border-[#233554] ml-3">
+                                        {p.sub_products.map((sp) => (
+                                          <RouterLink
+                                            key={sp.id}
+                                            to={`/products/${p.slug}?series=${sp.slug}`}
+                                            onClick={() => setMobileOpen(false)}
+                                            className="block px-2 py-1 rounded text-[11px] font-medium text-[#226597] dark:text-[#38bdf8] hover:bg-[#E4F1F5] dark:hover:bg-[#1e2e4a]"
+                                          >
+                                            • {sp.name}
+                                          </RouterLink>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
                                 ))}
                               </div>
                             ) : (

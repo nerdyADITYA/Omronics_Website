@@ -25,6 +25,7 @@ export class ProductRepository extends BaseRepository {
     const product = rows[0];
     product.images = await this.getImages(id);
     product.documents = await this.getDocuments(id);
+    product.sub_products = await this.getSubProducts(product.id);
     product.part_code_variants = await this.getPartCodeVariants(product.id);
     return product;
   }
@@ -47,8 +48,28 @@ export class ProductRepository extends BaseRepository {
     const product = rows[0];
     product.images = await this.getImages(product.id);
     product.documents = await this.getDocuments(product.id);
+    product.sub_products = await this.getSubProducts(product.id);
     product.part_code_variants = await this.getPartCodeVariants(product.id);
     return product;
+  }
+
+  /**
+   * Fetch active Sub-Products for a product
+   * @param {number|string} productId
+   */
+  async getSubProducts(productId) {
+    const sql = `
+      SELECT sp.*,
+             (SELECT COUNT(*) FROM product_cable_costs pcc WHERE pcc.sub_product_id = sp.id) as part_codes_count
+      FROM sub_products sp
+      WHERE sp.product_id = ? AND sp.deleted_at IS NULL AND sp.status = 'ACTIVE'
+      ORDER BY sp.sort_order ASC, sp.name ASC
+    `;
+    try {
+      return await query(sql, [productId]);
+    } catch (e) {
+      return [];
+    }
   }
 
   /**
@@ -57,10 +78,11 @@ export class ProductRepository extends BaseRepository {
    */
   async getPartCodeVariants(productId) {
     const sql = `
-      SELECT *
-      FROM product_cable_costs
-      WHERE product_id = ?
-      ORDER BY id ASC
+      SELECT pcc.*, sp.name as sub_product_display_name, sp.slug as sub_product_slug, sp.model_code as sub_product_model_code
+      FROM product_cable_costs pcc
+      LEFT JOIN sub_products sp ON pcc.sub_product_id = sp.id AND sp.deleted_at IS NULL
+      WHERE pcc.product_id = ?
+      ORDER BY pcc.id ASC
     `;
     const rows = await query(sql, [productId]);
     const formatted = rows.map((r) => {
@@ -225,6 +247,36 @@ export class ProductRepository extends BaseRepository {
     const rows = await query(sql, [...params, limit, offset]);
     const countRes = await query(countSql, params);
     const total = Number(countRes[0]?.total || 0);
+
+    // Batch-query active sub_products for all returned products
+    if (rows.length > 0) {
+      const pIds = rows.map((r) => r.id);
+      const placeholders = pIds.map(() => '?').join(',');
+      try {
+        const subProductsSql = `
+          SELECT sp.id, sp.product_id, sp.name, sp.slug, sp.model_code, sp.description, sp.image_url, sp.sort_order,
+                 (SELECT COUNT(*) FROM product_cable_costs pcc WHERE pcc.sub_product_id = sp.id) as part_codes_count
+          FROM sub_products sp
+          WHERE sp.product_id IN (${placeholders}) AND sp.deleted_at IS NULL AND sp.status = 'ACTIVE'
+          ORDER BY sp.sort_order ASC, sp.name ASC
+        `;
+        const subRows = await query(subProductsSql, pIds);
+        const subMap = new Map();
+        subRows.forEach((sp) => {
+          const pid = String(sp.product_id);
+          if (!subMap.has(pid)) subMap.set(pid, []);
+          subMap.get(pid).push(sp);
+        });
+        rows.forEach((r) => {
+          r.sub_products = subMap.get(String(r.id)) || [];
+        });
+      } catch (err) {
+        console.warn('Could not batch-fetch sub_products for products list:', err.message);
+        rows.forEach((r) => {
+          r.sub_products = [];
+        });
+      }
+    }
 
     return {
       data: rows,

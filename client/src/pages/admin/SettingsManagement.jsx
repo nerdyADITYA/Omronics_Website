@@ -54,6 +54,10 @@ export function SettingsManagement() {
     { name: 'meta_description', label: 'Global SEO Description', type: 'textarea', rows: 3 },
     { name: 'logo', label: 'Header Logo Image', type: 'image', folder: 'settings' },
     { name: 'favicon', label: 'Favicon Icon', type: 'image', folder: 'settings' },
+    { name: 'maintenance_title', label: 'Maintenance Page Title', type: 'text' },
+    { name: 'maintenance_message', label: 'Maintenance Page Message', type: 'textarea', rows: 3 },
+    { name: 'maintenance_contact_email', label: 'Maintenance Emergency Email', type: 'text' },
+    { name: 'maintenance_contact_phone', label: 'Maintenance Emergency Phone', type: 'text' },
   ];
 
   if (loading) {

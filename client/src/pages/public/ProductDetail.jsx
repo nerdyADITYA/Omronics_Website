@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
-import { Cpu, FileText, Download, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, X, Video } from 'lucide-react';
+import { Cpu, FileText, Download, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, X, Video, Layers } from 'lucide-react';
 import { Header } from '../../components/common/Header';
 import { Footer } from '../../components/common/Footer';
 import { SEOManager } from '../../components/common/SEOManager';
@@ -288,6 +288,7 @@ export function ProductDetail() {
   const [selectedVariantId, setSelectedVariantId] = useState('');
   const [selectedLength, setSelectedLength] = useState(5);
   const [isImageHovered, setIsImageHovered] = useState(false);
+  const [selectedSubProductSlug, setSelectedSubProductSlug] = useState(searchParams.get('series') || 'all');
 
   useEffect(() => {
     async function fetchProduct() {
@@ -296,21 +297,45 @@ export function ProductDetail() {
         const res = await api.get(`/products/slug/${slug}`);
         if (res.success && res.data) {
           setProduct(res.data);
-          if (Array.isArray(res.data.part_code_variants) && res.data.part_code_variants.length > 0) {
+          const allVariants = Array.isArray(res.data.part_code_variants) ? res.data.part_code_variants : [];
+          const allSubProducts = Array.isArray(res.data.sub_products) ? res.data.sub_products : [];
+
+          const seriesParam = (searchParams.get('series') || '').trim().toLowerCase();
+          let targetSubProduct = allSubProducts.find((sp) => sp.slug.toLowerCase() === seriesParam) || null;
+
+          // Default to the first sub-product if none specified and subproducts exist
+          if (!targetSubProduct && allSubProducts.length > 0) {
+            targetSubProduct = allSubProducts[0];
+          }
+
+          if (targetSubProduct) {
+            setSelectedSubProductSlug(targetSubProduct.slug);
+          } else {
+            setSelectedSubProductSlug('all');
+          }
+
+          const activeList = targetSubProduct
+            ? allVariants.filter((v) => Number(v.sub_product_id) === Number(targetSubProduct.id))
+            : allVariants;
+
+          if (activeList.length > 0) {
             const queryParam = (searchParams.get('partcode') || searchParams.get('search') || '').trim().toLowerCase();
             let matchedV = null;
             if (queryParam) {
-              matchedV = res.data.part_code_variants.find(
+              matchedV = activeList.find(
                 (v) => (v.part_code && v.part_code.toLowerCase().includes(queryParam)) ||
                        (v.motor_type && v.motor_type.toLowerCase().includes(queryParam)) ||
                        (v.frame_size && v.frame_size.toLowerCase().includes(queryParam))
               );
             }
-            const activeV = matchedV || res.data.part_code_variants[0];
+            const activeV = matchedV || activeList[0];
             const baseKey = `${getBasePartCodeTemplate(activeV.part_code)}__${activeV.motor_type || ''}__${activeV.frame_size || ''}`.toLowerCase();
             setSelectedModelKey(baseKey);
             setSelectedVariantId(String(activeV.id));
             setSelectedLength(getVariantLength(activeV));
+          } else {
+            setSelectedModelKey('');
+            setSelectedVariantId('');
           }
         }
       } catch (err) {
@@ -323,12 +348,18 @@ export function ProductDetail() {
   }, [slug, searchParams]);
 
   const variants = Array.isArray(product?.part_code_variants) ? product.part_code_variants : [];
+  const subProducts = Array.isArray(product?.sub_products) ? product.sub_products : [];
 
-  // Group variants into distinct base models (e.g. B107-xx.x and M107-xx.x only)
+  const activeSubProduct = subProducts.find((sp) => sp.slug === selectedSubProductSlug) || (subProducts.length > 0 ? subProducts[0] : null);
+  const filteredVariants = activeSubProduct
+    ? variants.filter((v) => Number(v.sub_product_id) === Number(activeSubProduct.id))
+    : variants;
+
+  // Group filtered variants into distinct base models
   const distinctModelVariants = [];
   const seenBaseTemplates = new Set();
 
-  variants.forEach((v) => {
+  filteredVariants.forEach((v) => {
     const baseTemplate = getBasePartCodeTemplate(v.part_code);
     const groupKey = `${baseTemplate}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
     if (!seenBaseTemplates.has(groupKey)) {
@@ -344,13 +375,32 @@ export function ProductDetail() {
   const selectedVariant = variants.find((v) => String(v.id) === String(selectedVariantId)) || null;
 
   // Filter and sort available length variants for the currently selected model
-  const availableVariantsForModel = variants.filter((v) => {
+  const availableVariantsForModel = filteredVariants.filter((v) => {
     const t = getBasePartCodeTemplate(v.part_code);
     const key = `${t}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
     return key === selectedModelKey;
   });
 
   availableVariantsForModel.sort((a, b) => getVariantLength(a) - getVariantLength(b));
+
+  const handleSubProductChange = (spSlug) => {
+    setSelectedSubProductSlug(spSlug);
+    const targetSp = subProducts.find((sp) => sp.slug === spSlug) || null;
+    const nextVariants = targetSp
+      ? variants.filter((v) => Number(v.sub_product_id) === Number(targetSp.id))
+      : variants;
+
+    if (nextVariants.length > 0) {
+      const activeV = nextVariants[0];
+      const baseKey = `${getBasePartCodeTemplate(activeV.part_code)}__${activeV.motor_type || ''}__${activeV.frame_size || ''}`.toLowerCase();
+      setSelectedModelKey(baseKey);
+      setSelectedVariantId(String(activeV.id));
+      setSelectedLength(getVariantLength(activeV));
+    } else {
+      setSelectedModelKey('');
+      setSelectedVariantId('');
+    }
+  };
 
   const lenNumber = Number(selectedLength) || 5;
 
@@ -606,7 +656,24 @@ export function ProductDetail() {
                 <span>/</span>
               </>
             ) : null}
-            <span className="text-[#226597] font-bold">{product.product_name}</span>
+            {activeSubProduct ? (
+              <>
+                <RouterLink
+                  to={
+                    product.category_slug
+                      ? `/products?category=${product.category_slug}&product=${product.slug}`
+                      : `/products?product=${product.slug}`
+                  }
+                  className="hover:text-[#226597]"
+                >
+                  {product.product_name}
+                </RouterLink>
+                <span>/</span>
+                <span className="text-[#226597] font-bold">{activeSubProduct.name}</span>
+              </>
+            ) : (
+              <span className="text-[#226597] font-bold">{product.product_name}</span>
+            )}
           </div>
 
           {/* Product Hero Layout */}
@@ -629,14 +696,14 @@ export function ProductDetail() {
                     />
                     <button
                       onClick={() => setLightboxOpen(true)}
-                      className="absolute top-4 right-4 p-2 rounded-xl bg-[#F3F9FB]/90 border border-[#87C0CD]/40 text-[#113F67] opacity-0 group-hover:opacity-100 transition shadow-sm"
+                      className="absolute bottom-4 right-4 p-2.5 rounded-full bg-white/90 border border-[#87C0CD]/40 text-[#113F67] hover:bg-[#226597] hover:text-white transition shadow-md"
                       title="Enlarge Image"
                     >
                       <Maximize2 className="w-4 h-4" />
                     </button>
                   </>
                 ) : (
-                  <Cpu className="w-24 h-24 text-[#87C0CD]" />
+                  <Cpu className="w-24 h-24 text-[#87C0CD]/40" />
                 )}
 
                 {galleryImages.length > 1 && (
@@ -677,21 +744,54 @@ export function ProductDetail() {
             {/* Product Meta & Actions */}
             <div className="lg:col-span-6 space-y-6">
               <div className="space-y-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#226597] bg-[#E4F1F5] px-3 py-1 rounded-full border border-[#87C0CD]/40 inline-block font-sans">
-                  {product.category_name || 'Industrial Product'}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#226597] bg-[#E4F1F5] px-3 py-1 rounded-full border border-[#87C0CD]/40 inline-block font-sans">
+                    {product.category_name || 'Industrial Product'}
+                  </span>
+                  {activeSubProduct && (
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#113F67] bg-[#E4F1F5] px-3 py-1 rounded-full border border-[#87C0CD]/40 inline-block font-sans">
+                      {activeSubProduct.name}
+                    </span>
+                  )}
+                </div>
                 <h1 className="text-3xl font-extrabold text-[#113F67] font-display tracking-tight leading-tight">
-                  {product.product_name}
+                  {product.product_name} {activeSubProduct ? `— ${activeSubProduct.name}` : ''}
                 </h1>
-                {product.model_number && (
+                {activeSubProduct?.model_code ? (
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-wider font-sans">
+                    Sub-Product Code: <span className="text-[#226597] font-mono">{activeSubProduct.model_code}</span>
+                  </p>
+                ) : product.model_number ? (
                   <p className="text-xs text-slate-500 font-bold uppercase tracking-wider font-sans">
                     Model: <span className="text-[#226597] font-mono">{product.model_number}</span>
+                  </p>
+                ) : null}
+                {activeSubProduct?.description && (
+                  <p className="text-xs text-slate-600 leading-relaxed font-sans pt-1">
+                    {activeSubProduct.description}
                   </p>
                 )}
               </div>
 
-              {/* Variant Pricing & 2-Step Selector Box */}
+              {/* Variant Pricing & Selector Box */}
               <div className="p-5 bg-[#E4F1F5]/60 border border-[#87C0CD]/40 rounded-2xl space-y-4 font-sans">
+                {/* Active Sub-Product Name Direct Display */}
+                {activeSubProduct && (
+                  <div className="pb-3 border-b border-[#87C0CD]/30 flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Layers className="w-4 h-4 text-[#226597]" />
+                      <span className="text-xs font-extrabold text-[#113F67] uppercase tracking-wider">
+                        Sub-Product: <span className="text-[#226597] font-bold text-sm normal-case">{activeSubProduct.name}</span>
+                      </span>
+                    </div>
+                    {activeSubProduct.model_code && (
+                      <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-lg bg-white text-[#226597] border border-[#87C0CD]/40 shadow-2xs">
+                        {activeSubProduct.model_code}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {variants.length > 0 && (
                   <div className="space-y-3.5">
                     {/* Step 1: Select Part Code Model / Motor Spec */}

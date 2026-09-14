@@ -208,6 +208,7 @@ export function CableCalculator() {
   // On-Demand Product Variants for Section 1 Interactive Calculator
   const [productVariants, setProductVariants] = useState([]);
   const [loadingVariants, setLoadingVariants] = useState(false);
+  const [productSubProducts, setProductSubProducts] = useState([]);
 
   // Helper to derive distinct model base templates for the currently selected product only
   const distinctModelVariants = [];
@@ -257,6 +258,8 @@ export function CableCalculator() {
   const [params, setParams] = useState({
     id: null,
     product_id: '',
+    sub_product_id: null,
+    sub_product_name: '',
     frame_size: '',
     motor_type: '',
     part_code: '',
@@ -274,6 +277,24 @@ export function CableCalculator() {
     additional_components: [],
     image_urls: [],
   });
+
+  // On-demand fetch of sub-products for the selected product
+  const fetchProductSubProducts = async (productId) => {
+    if (!productId) {
+      setProductSubProducts([]);
+      return;
+    }
+    try {
+      const res = await api.get(`/sub-products/by-product/${productId}`);
+      if (res.success && Array.isArray(res.data)) {
+        setProductSubProducts(res.data);
+      } else {
+        setProductSubProducts([]);
+      }
+    } catch (err) {
+      setProductSubProducts([]);
+    }
+  };
 
   // On-demand fetch of part codes & variants for ONLY the selected product
   const fetchProductVariants = async (productId, variantToLoadId = null) => {
@@ -362,6 +383,7 @@ export function CableCalculator() {
         setSelectedProductId(initialProdId);
         await Promise.all([
           fetchProductVariants(initialProdId),
+          fetchProductSubProducts(initialProdId),
           fetchFilterOptions('ALL'),
           fetchOverviewData(1, itemsPerPage, 'ALL', 'ALL'),
         ]);
@@ -384,6 +406,8 @@ export function CableCalculator() {
     setParams({
       id: null,
       product_id: productId,
+      sub_product_id: null,
+      sub_product_name: '',
       frame_size: '',
       motor_type: '',
       part_code: '',
@@ -452,6 +476,8 @@ export function CableCalculator() {
     setParams({
       id: variant.id,
       product_id: variant.product_id,
+      sub_product_id: variant.sub_product_id || null,
+      sub_product_name: variant.sub_product_name || '',
       frame_size: variant.frame_size || '',
       motor_type: variant.motor_type || '',
       part_code: variant.part_code || '',
@@ -613,6 +639,8 @@ export function CableCalculator() {
       ...params,
       id: activeVariantId, // if set, updates existing variant row
       product_id: Number(selectedProductId),
+      sub_product_id: params.sub_product_id ? Number(params.sub_product_id) : null,
+      sub_product_name: params.sub_product_name || '',
       landing_cost: Math.round(landingCost),
       selling_price: Math.round(sellingPrice),
       image_urls: params.image_urls || [],
@@ -920,10 +948,10 @@ export function CableCalculator() {
 
               {/* Product and Model Selectors Side-by-Side */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
-                {/* Product Selector */}
+                {/* Product Selector (Tier 2) */}
                 <div className="flex flex-col">
                   <div className="h-5 flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-bold text-[#113F67] dark:text-slate-300">Target Servo Cable Product *</label>
+                    <label className="text-[11px] font-bold text-[#113F67] dark:text-slate-300">Target Product *</label>
                   </div>
                   <select
                     value={selectedProductId}
@@ -944,7 +972,7 @@ export function CableCalculator() {
                   </select>
                 </div>
 
-                {/* Model Selector */}
+                {/* Model Selector (Tier 3/4) */}
                 <div className="flex flex-col">
                   <div className="h-5 flex items-center justify-between mb-1">
                     <label className="text-[11px] font-bold text-[#113F67] dark:text-slate-300">
@@ -1801,7 +1829,7 @@ export function CableCalculator() {
               <div className="flex items-center justify-between border-b border-[#87C0CD]/30 dark:border-[#233554] pb-2">
                 <div className="flex items-center space-x-2 font-extrabold text-[#113F67] dark:text-[#f8fafc]">
                   <Info className="w-4 h-4 text-[#226597] dark:text-[#38bdf8]" />
-                  <span>Excel File Import Field Guidelines & Requirements</span>
+                  <span>Standardized 20-Column Excel Format & Guidelines (Import & Export Identical)</span>
                 </div>
                 <button
                   onClick={() => setShowImportGuide(false)}
@@ -1816,17 +1844,17 @@ export function CableCalculator() {
                 <div className="p-3.5 bg-white dark:bg-[#152238] border border-emerald-200 dark:border-emerald-900/50 rounded-lg space-y-2">
                   <span className="font-extrabold text-emerald-700 dark:text-emerald-400 flex items-center space-x-1.5 text-xs">
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>MANDATORY / REQUIRED FIELDS</span>
+                    <span>MANDATORY / REQUIRED COLUMNS</span>
                   </span>
                   <ul className="space-y-1.5 text-slate-700 dark:text-slate-300">
                     <li>
-                      <code className="font-mono text-emerald-800 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">product_name</code>: Must match catalog product name (e.g., <span className="italic font-semibold">INNOVANCE</span>, <span className="italic font-semibold">DELTA</span>).
+                      <code className="font-mono text-emerald-800 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">Product Name</code> (Col 2): Must match catalog product name (e.g., <span className="italic font-semibold">INNOVANCE</span>, <span className="italic font-semibold">DELTA</span>).
                     </li>
                     <li>
-                      <code className="font-mono text-emerald-800 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">part_code</code>: Unique Part Code identifier (e.g., <span className="italic font-semibold">S6-L-P014-xx.x</span>).
+                      <code className="font-mono text-emerald-800 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">Part Code</code> (Col 3): Unique Part Code identifier (e.g., <span className="italic font-semibold">S6-L-P014-xx.x</span>).
                     </li>
                     <li>
-                      <code className="font-mono text-emerald-800 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">cable_cost_per_meter</code>: Raw cable cost per meter in ₹ (e.g., <span className="italic font-semibold">90</span>).
+                      <code className="font-mono text-emerald-800 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">Cable Cost / Meter (₹)</code> (Col 8): Raw cable cost per meter in ₹ (e.g., <span className="italic font-semibold">90</span>).
                     </li>
                   </ul>
                 </div>
@@ -1835,23 +1863,20 @@ export function CableCalculator() {
                 <div className="p-3.5 bg-white dark:bg-[#152238] border border-sky-200 dark:border-sky-900/50 rounded-lg space-y-2">
                   <span className="font-extrabold text-[#226597] dark:text-[#38bdf8] flex items-center space-x-1.5 text-xs">
                     <Info className="w-4 h-4" />
-                    <span>OPTIONAL FIELDS (AUTOMATIC DEFAULTS IF BLANK)</span>
+                    <span>SPECIFICATIONS & CALCULATION FIELDS</span>
                   </span>
                   <ul className="space-y-1.5 text-slate-700 dark:text-slate-300">
                     <li>
-                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">default_length</code>: Cable length in meters (Default: <span className="font-bold">5m</span>).
+                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">Frame Size</code>, <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">Motor / Power Spec</code>, <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">Cable Dimension</code>.
                     </li>
                     <li>
-                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">connector1_name</code> / <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">connector1_cost</code>: Primary connector.
+                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">Default Length (m)</code> (Default: 5m) &amp; Connectors (1 &amp; 2).
                     </li>
                     <li>
-                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">connector2_name</code> / <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">connector2_cost</code>: Secondary connector.
+                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">Labour Cost (₹)</code> (Default: ₹150) &amp; <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">Profit Margin %</code> (Default: 35%).
                     </li>
                     <li>
-                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">labour_cost</code>: Assembly labour fee (Default: <span className="font-bold">₹150</span>).
-                    </li>
-                    <li>
-                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">margin_percentage</code>: Profit margin % (Default: <span className="font-bold">35%</span>).
+                      <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">Landing Cost (₹)</code> &amp; <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">Final Selling Price (₹)</code>: Calculated automatically if left blank.
                     </li>
                   </ul>
                 </div>
@@ -1860,19 +1885,19 @@ export function CableCalculator() {
                 <div className="p-3.5 bg-white dark:bg-[#152238] border border-amber-200 dark:border-amber-900/50 rounded-lg space-y-2 md:col-span-2">
                   <span className="font-extrabold text-amber-700 dark:text-amber-400 flex items-center space-x-1.5 text-xs">
                     <ImageIcon className="w-4 h-4" />
-                    <span>HOW TO ATTACH VARIANT IMAGES IN EXCEL (2 EASY METHODS)</span>
+                    <span>HOW TO ATTACH VARIANT IMAGES (IDENTICAL IN EXPORT &amp; IMPORT)</span>
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-700 dark:text-slate-300">
                     <div className="p-3 bg-amber-50/60 dark:bg-amber-950/30 rounded-lg border border-amber-200/60 dark:border-amber-800/40 space-y-1">
-                      <span className="font-bold text-[#113F67] dark:text-[#f8fafc] block text-xs">Method 1: Paste Picture Files Directly into Rows</span>
+                      <span className="font-bold text-[#113F67] dark:text-[#f8fafc] block text-xs">Method 1: Column 1 - Paste Picture Files Directly into Cell</span>
                       <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
-                        In Microsoft Excel or Google Sheets, simply <strong className="text-[#226597] dark:text-[#38bdf8]">Insert / Paste picture files</strong> directly into the table row of that Part Code. The import engine automatically extracts, optimizes, and links them to the variant!
+                        In Microsoft Excel or Google Sheets, simply <strong className="text-[#226597] dark:text-[#38bdf8]">Paste photo files directly into Column 1 (Variant Image)</strong>. Exported files already embed photos in Column 1, and the import engine extracts and links them directly!
                       </p>
                     </div>
                     <div className="p-3 bg-sky-50/60 dark:bg-sky-950/30 rounded-lg border border-sky-200/60 dark:border-sky-800/40 space-y-1">
-                      <span className="font-bold text-[#113F67] dark:text-[#f8fafc] block text-xs">Method 2: Use the "images" Column for URLs</span>
+                      <span className="font-bold text-[#113F67] dark:text-[#f8fafc] block text-xs">Method 2: Column 20 - Use Image URLs (Links)</span>
                       <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
-                        Add direct image URLs in the <code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold">images</code> column. For multiple photos for one variant, separate links with a comma (e.g. <code className="font-mono text-[10px]">url1.jpg, url2.jpg</code>).
+                        Add direct URLs in Column 20 (<code className="font-mono text-[#226597] dark:text-[#38bdf8] font-bold">Image URLs (Links)</code>). For multiple URLs, separate with a comma (e.g. <code className="font-mono text-[10px]">url1.jpg, url2.jpg</code>).
                       </p>
                     </div>
                   </div>
@@ -1927,6 +1952,11 @@ export function CableCalculator() {
                           <span className="font-bold text-[#113F67] dark:text-slate-100 block text-[11px] leading-snug break-words">
                             {c.product_name}
                           </span>
+                          {c.sub_product_name && (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.2 bg-sky-50 dark:bg-sky-950/80 text-[#226597] dark:text-[#38bdf8] text-[9.5px] font-bold rounded border border-sky-200/60 dark:border-sky-800/40">
+                              {c.sub_product_name}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2 align-middle">
                           <span className="px-1.5 py-0.5 bg-[#E4F1F5] dark:bg-[#0f1b36] rounded border border-[#87C0CD]/40 dark:border-[#233554] font-mono text-[10px] font-bold text-[#226597] dark:text-[#38bdf8] inline-block break-all tracking-tight">
@@ -2194,7 +2224,7 @@ export function CableCalculator() {
                     <thead className="bg-[#F3F9FB] dark:bg-[#111c33] uppercase text-[10px] font-extrabold text-[#113F67] dark:text-[#38bdf8] border-b border-[#87C0CD]/30 dark:border-[#233554]">
                       <tr>
                         <th className="px-3 py-2">Part Code</th>
-                        <th className="px-3 py-2">Product</th>
+                        <th className="px-3 py-2">Product / Sub-Product</th>
                         <th className="px-3 py-2 text-center">Images</th>
                         <th className="px-3 py-2 text-right">Landing Cost Diff</th>
                         <th className="px-3 py-2 text-right">Final Selling Price Diff</th>
@@ -2204,7 +2234,14 @@ export function CableCalculator() {
                       {analysisResult.toUpdate.map((u, idx) => (
                         <tr key={idx} className="hover:bg-[#F3F9FB]/60 dark:hover:bg-[#1e2e4a]">
                           <td className="px-3 py-2 font-mono font-bold text-[#226597] dark:text-[#38bdf8]">{u.part_code}</td>
-                          <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-300">{u.product_name}</td>
+                          <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-300">
+                            <div>{u.product_name}</div>
+                            {u.sub_product_name && (
+                              <span className="text-[10px] text-[#226597] dark:text-[#38bdf8] font-bold block">
+                                {u.sub_product_name}
+                              </span>
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-center">
                             {u.image_count > 0 ? (
                               <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-md font-bold text-[10px]">

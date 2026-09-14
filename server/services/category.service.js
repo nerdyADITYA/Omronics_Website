@@ -4,8 +4,8 @@ import { AppError } from '../middlewares/error.middleware.js';
 import { MESSAGES } from '../constants/messages.js';
 
 export class CategoryService {
-  async getAll(params) {
-    return categoryRepository.findAll(params);
+  async getAll(params = {}) {
+    return categoryRepository.findAllWithProductCounts(params);
   }
 
   async getNavigationTree() {

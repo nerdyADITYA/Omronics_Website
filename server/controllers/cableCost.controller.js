@@ -87,7 +87,7 @@ export async function syncSellingPrice(req, res) {
 
 export async function downloadSampleTemplate(req, res) {
   try {
-    const buffer = cableCostService.generateSampleTemplate();
+    const buffer = await cableCostService.generateSampleTemplate();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="servo_cable_import_sample.xlsx"');
     return res.send(buffer);

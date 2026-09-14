@@ -35,12 +35,37 @@ export class SettingsService {
         meta_title: 'Omronics Automation | Industrial Automation & Electrical Engineering',
         meta_description:
           'Leading manufacturer and solution provider for servo cables, relay cards, SCADA integration, and industrial automation assemblies.',
+        is_maintenance_mode: 0,
+        maintenance_title: 'Website Under Scheduled Maintenance',
+        maintenance_message:
+          'We are currently performing scheduled maintenance and upgrades to serve you better. Please check back shortly.',
+        maintenance_contact_email: 'sales@omronics.com',
+        maintenance_contact_phone: '+91 9512953737',
       });
     }
 
     if (settings) {
       if (settings.logo) settings.logo = cleanImageUrl(settings.logo);
       if (settings.favicon) settings.favicon = cleanImageUrl(settings.favicon);
+      settings.is_maintenance_mode = Boolean(
+        settings.is_maintenance_mode === 1 ||
+        settings.is_maintenance_mode === true ||
+        settings.is_maintenance_mode === '1' ||
+        settings.is_maintenance_mode === 'true'
+      );
+      if (!settings.maintenance_title) {
+        settings.maintenance_title = 'Website Under Scheduled Maintenance';
+      }
+      if (!settings.maintenance_message) {
+        settings.maintenance_message =
+          'We are currently performing scheduled maintenance and upgrades to serve you better. Please check back shortly.';
+      }
+      if (!settings.maintenance_contact_email) {
+        settings.maintenance_contact_email = settings.support_email || settings.company_email || 'sales@omronics.com';
+      }
+      if (!settings.maintenance_contact_phone) {
+        settings.maintenance_contact_phone = settings.phone || '+91 9512953737';
+      }
     }
 
     return settings;
@@ -53,6 +78,9 @@ export class SettingsService {
     }
     if (payload.favicon !== undefined) {
       payload.favicon = cleanImageUrl(payload.favicon);
+    }
+    if (payload.is_maintenance_mode !== undefined) {
+      payload.is_maintenance_mode = payload.is_maintenance_mode ? 1 : 0;
     }
     return settingsRepository.updateSettings(payload);
   }

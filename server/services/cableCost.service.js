@@ -148,12 +148,51 @@ export class CableCostService {
   }
 
   /**
-   * Generate binary Excel sample import template
+   * Generate binary Excel sample import template with standardized 20 columns
    */
-  generateSampleTemplate() {
-    const templateData = [
+  async generateSampleTemplate() {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Servo Cable Import');
+
+    worksheet.columns = [
+      { header: 'Variant Image', key: 'image', width: 16 },
+      { header: 'Product Name', key: 'product_name', width: 24 },
+      { header: 'Sub-Product (Series)', key: 'sub_product_name', width: 24 },
+      { header: 'Part Code', key: 'part_code', width: 24 },
+      { header: 'Frame Size', key: 'frame_size', width: 24 },
+      { header: 'Motor / Power Spec', key: 'motor_type', width: 32 },
+      { header: 'Default Length (m)', key: 'default_length', width: 18 },
+      { header: 'Cable Dimension', key: 'cable_dimension', width: 22 },
+      { header: 'Cable Cost / Meter (₹)', key: 'cable_cost_per_meter', width: 22 },
+      { header: 'Connector 1 Name', key: 'connector1_name', width: 22 },
+      { header: 'Connector 1 Cost (₹)', key: 'connector1_cost', width: 20 },
+      { header: 'Connector 2 Name', key: 'connector2_name', width: 22 },
+      { header: 'Connector 2 Cost (₹)', key: 'connector2_cost', width: 20 },
+      { header: 'Labour Cost (₹)', key: 'labour_cost', width: 16 },
+      { header: 'Battery Name', key: 'battery_name', width: 16 },
+      { header: 'Battery Cost (₹)', key: 'battery_cost', width: 16 },
+      { header: 'Profit Margin %', key: 'margin_percentage', width: 16 },
+      { header: 'Additional Components', key: 'additional_components', width: 28 },
+      { header: 'Landing Cost (₹)', key: 'landing_cost', width: 18 },
+      { header: 'Final Selling Price (₹)', key: 'selling_price', width: 20 },
+      { header: 'Image URLs (Links)', key: 'images_text', width: 35 },
+    ];
+
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF113F67' },
+    };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    headerRow.height = 28;
+
+    const sampleRows = [
       {
+        image: '(Paste photo here or leave blank)',
         product_name: 'INNOVANCE',
+        sub_product_name: 'IS620N Series Incremental',
         part_code: 'S6-L-P014-xx.x',
         frame_size: '40/60/80 FRAME SIZE',
         motor_type: '100W TO 750W - INCREMENTAL',
@@ -169,10 +208,14 @@ export class CableCostService {
         battery_cost: 0,
         margin_percentage: 35,
         additional_components: '',
-        images: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c',
+        landing_cost: 900,
+        selling_price: 1215,
+        images_text: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c',
       },
       {
+        image: '(Paste photo here or leave blank)',
         product_name: 'INNOVANCE',
+        sub_product_name: 'IS620N Series Brake',
         part_code: 'S6-L-B107-xx.x',
         frame_size: '40/60/80 FRAME SIZE',
         motor_type: '100W TO 750W - WITH BRAKE',
@@ -188,35 +231,19 @@ export class CableCostService {
         battery_cost: 0,
         margin_percentage: 50,
         additional_components: '',
-        images: '',
+        landing_cost: 1025,
+        selling_price: 1538,
+        images_text: '',
       },
     ];
 
-    const worksheet = XLSX.utils.json_to_sheet(templateData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Servo Cable Import');
+    sampleRows.forEach((data) => {
+      const row = worksheet.addRow(data);
+      row.alignment = { vertical: 'middle', horizontal: 'left' };
+      row.height = 30;
+    });
 
-    worksheet['!cols'] = [
-      { wch: 24 }, // product_name
-      { wch: 22 }, // part_code
-      { wch: 24 }, // frame_size
-      { wch: 30 }, // motor_type
-      { wch: 15 }, // default_length
-      { wch: 22 }, // cable_dimension
-      { wch: 22 }, // cable_cost_per_meter
-      { wch: 22 }, // connector1_name
-      { wch: 16 }, // connector1_cost
-      { wch: 22 }, // connector2_name
-      { wch: 16 }, // connector2_cost
-      { wch: 14 }, // labour_cost
-      { wch: 16 }, // battery_name
-      { wch: 14 }, // battery_cost
-      { wch: 18 }, // margin_percentage
-      { wch: 24 }, // additional_components
-      { wch: 40 }, // images
-    ];
-
-    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    return workbook.xlsx.writeBuffer();
   }
 
   /**
@@ -229,6 +256,7 @@ export class CableCostService {
     worksheet.columns = [
       { header: 'Variant Image', key: 'image', width: 16 },
       { header: 'Product Name', key: 'product_name', width: 24 },
+      { header: 'Sub-Product (Series)', key: 'sub_product_name', width: 24 },
       { header: 'Part Code', key: 'part_code', width: 24 },
       { header: 'Frame Size', key: 'frame_size', width: 24 },
       { header: 'Motor / Power Spec', key: 'motor_type', width: 32 },
@@ -292,6 +320,7 @@ export class CableCostService {
       const row = worksheet.addRow({
         image: '',
         product_name: c.product_name || '',
+        sub_product_name: c.sub_product_title || c.sub_product_name || '',
         part_code: c.part_code || '',
         frame_size: c.frame_size || '',
         motor_type: c.motor_type || '',
@@ -394,6 +423,19 @@ export class CableCostService {
       }
     });
 
+    // Fetch existing sub-products
+    let subProducts = [];
+    try {
+      subProducts = await query(`SELECT id, product_id, name FROM sub_products WHERE deleted_at IS NULL`);
+    } catch (e) {
+      subProducts = [];
+    }
+    const subProductMap = new Map();
+    subProducts.forEach((sp) => {
+      const key = `${sp.product_id}__${sp.name.trim().toLowerCase()}`;
+      subProductMap.set(key, sp.id);
+    });
+
     // Fetch existing variant configurations
     const existingConfigs = await cableCostRepository.getAllForExport();
     const existingMap = new Map();
@@ -412,15 +454,30 @@ export class CableCostService {
       const row = rawRows[i];
       const rowNum = i + 2; // 1-indexed header is row 1, data starts at row 2
 
-      // Standardize column key names (trim whitespace & lowercase keys)
+      // Standardize column key names (trim whitespace, lowercase, and loose alphanumeric indexing)
       const normalized = {};
+      const looseMap = {};
       Object.keys(row).forEach((k) => {
-        const cleanKey = String(k).trim().toLowerCase().replace(/\s+/g, '_');
-        normalized[cleanKey] = String(row[k]).trim();
+        const strKey = String(k).trim().toLowerCase();
+        const cleanKey = strKey.replace(/\s+/g, '_');
+        const strippedKey = strKey.replace(/[^a-z0-9]/g, '');
+        const val = String(row[k] !== undefined && row[k] !== null ? row[k] : '').trim();
+        normalized[cleanKey] = val;
+        looseMap[strippedKey] = val;
       });
 
-      const productName = normalized.product_name || normalized.product || '';
-      const partCode = normalized.part_code || normalized.partcode || '';
+      const getVal = (...keys) => {
+        for (const k of keys) {
+          const cleanK = k.toLowerCase().replace(/\s+/g, '_');
+          if (normalized[cleanK] !== undefined && normalized[cleanK] !== '') return normalized[cleanK];
+          const stripK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (looseMap[stripK] !== undefined && looseMap[stripK] !== '') return looseMap[stripK];
+        }
+        return '';
+      };
+
+      const productName = getVal('product_name', 'product', 'Product Name');
+      const partCode = getVal('part_code', 'partcode', 'Part Code');
 
       if (!productName) {
         errors.push({ row: rowNum, message: 'Missing product_name' });
@@ -440,22 +497,65 @@ export class CableCostService {
         continue;
       }
 
+      // Resolve sub-product (matches by name, model_code, slug, or auto-creates if newly mentioned in Excel)
+      const subProductName = getVal('sub_product_name', 'sub_product', 'Sub-Product (Series)', 'Sub-Product', 'Sub Product', 'Model Series', 'series', 'subproduct') || null;
+      let subProductId = null;
+      if (subProductName && subProductName.trim() && productId) {
+        const spTrimmed = subProductName.trim();
+        const spKey = `${productId}__${spTrimmed.toLowerCase()}`;
+        if (subProductMap.has(spKey)) {
+          subProductId = subProductMap.get(spKey);
+        } else {
+          // Check if matches existing sub-product by model_code, slug, or substring
+          const found = subProducts.find(
+            (sp) => sp.product_id === productId && (
+              (sp.name && sp.name.trim().toLowerCase() === spTrimmed.toLowerCase()) ||
+              (sp.model_code && sp.model_code.trim().toLowerCase() === spTrimmed.toLowerCase()) ||
+              (sp.slug && sp.slug.trim().toLowerCase() === spTrimmed.toLowerCase()) ||
+              spTrimmed.toLowerCase().includes(sp.name.trim().toLowerCase()) ||
+              sp.name.trim().toLowerCase().includes(spTrimmed.toLowerCase())
+            )
+          );
+          if (found) {
+            subProductId = found.id;
+            subProductMap.set(spKey, found.id);
+          } else {
+            // Auto-create sub_product in the database so that the part code is immediately mapped to it
+            try {
+              const slug = spTrimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `series-${Date.now()}`;
+              const insertSpSql = `INSERT INTO sub_products (product_id, name, slug, status) VALUES (?, ?, ?, 'ACTIVE')`;
+              const spRes = await query(insertSpSql, [productId, spTrimmed, slug]);
+              subProductId = spRes.insertId;
+              subProductMap.set(spKey, subProductId);
+              subProducts.push({ id: subProductId, product_id: productId, name: spTrimmed, slug });
+            } catch (spErr) {
+              console.warn('Could not auto-create sub_product during import:', spErr.message);
+            }
+          }
+        }
+      }
+
       // Parse cost and specs
-      const defaultLength = Number(normalized.default_length) || 5;
-      const cableCostPerMeter = Number(normalized.cable_cost_per_meter) || 0;
-      const connector1Name = normalized.connector1_name || null;
-      const connector1Cost = Number(normalized.connector1_cost) || 0;
-      const connector2Name = normalized.connector2_name || null;
-      const connector2Cost = Number(normalized.connector2_cost) || 0;
-      const labourCost = Number(normalized.labour_cost) || 150;
-      const batteryName = normalized.battery_name || null;
-      const batteryCost = Number(normalized.battery_cost) || 0;
-      const marginPct = Number(normalized.margin_percentage) || 35;
+      const frameSize = getVal('frame_size', 'Frame Size') || null;
+      const motorType = getVal('motor_type', 'Motor / Power Spec', 'motor_power_spec', 'motor_spec', 'motor') || null;
+      const defaultLength = Number(getVal('default_length', 'Default Length (m)', 'default_length_m', 'length')) || 5;
+      const cableDimension = getVal('cable_dimension', 'Cable Dimension', 'cable_spec') || null;
+      const cableCostPerMeter = Number(getVal('cable_cost_per_meter', 'Cable Cost / Meter (₹)', 'cable_cost_meter', 'cable_cost')) || 0;
+      const connector1Name = getVal('connector1_name', 'connector_1_name', 'Connector 1 Name') || null;
+      const connector1Cost = Number(getVal('connector1_cost', 'connector_1_cost', 'Connector 1 Cost (₹)', 'connector_1_cost_rs')) || 0;
+      const connector2Name = getVal('connector2_name', 'connector_2_name', 'Connector 2 Name') || null;
+      const connector2Cost = Number(getVal('connector2_cost', 'connector_2_cost', 'Connector 2 Cost (₹)', 'connector_2_cost_rs')) || 0;
+      const labourCostRaw = getVal('labour_cost', 'Labour Cost (₹)', 'labour_cost_rs', 'labour');
+      const labourCost = labourCostRaw !== '' ? Number(labourCostRaw) : 150;
+      const batteryName = getVal('battery_name', 'Battery Name') || null;
+      const batteryCost = Number(getVal('battery_cost', 'Battery Cost (₹)', 'battery_cost_rs')) || 0;
+      const marginPct = Number(getVal('margin_percentage', 'Profit Margin %', 'margin_pct', 'profit_margin', 'margin')) || 35;
+      const addCompRaw = getVal('additional_components', 'Additional Components');
 
       let additionalComponents = [];
-      if (normalized.additional_components) {
+      if (addCompRaw) {
         try {
-          additionalComponents = JSON.parse(normalized.additional_components);
+          additionalComponents = JSON.parse(addCompRaw);
         } catch (e) {
           additionalComponents = [];
         }
@@ -471,8 +571,8 @@ export class CableCostService {
 
       // Parse images from URLs / links column
       const parsedImages = [];
-      const rawImagesCol = normalized.images || normalized.image || normalized.image_url || normalized.image_urls || normalized.images_text || '';
-      if (rawImagesCol) {
+      const rawImagesCol = getVal('images_text', 'Image URLs (Links)', 'image_urls_links', 'images', 'image_url', 'image_urls', 'image');
+      if (rawImagesCol && !rawImagesCol.startsWith('(Paste photo')) {
         if (rawImagesCol.startsWith('[')) {
           try {
             const arr = JSON.parse(rawImagesCol);
@@ -484,7 +584,7 @@ export class CableCostService {
         } else {
           rawImagesCol.split(/[,;\n]+/).forEach((img) => {
             const clean = img.trim();
-            if (clean) parsedImages.push(clean);
+            if (clean && !clean.startsWith('(Paste photo')) parsedImages.push(clean);
           });
         }
       }
@@ -502,11 +602,13 @@ export class CableCostService {
       const parsedPayload = {
         product_id: productId,
         product_name: productName,
+        sub_product_id: subProductId,
+        sub_product_name: subProductName,
         part_code: partCode,
-        frame_size: normalized.frame_size || null,
-        motor_type: normalized.motor_type || null,
+        frame_size: frameSize,
+        motor_type: motorType,
         default_length: defaultLength,
-        cable_dimension: normalized.cable_dimension || null,
+        cable_dimension: cableDimension,
         cable_cost_per_meter: cableCostPerMeter,
         connector1_name: connector1Name,
         connector1_cost: connector1Cost,
@@ -532,15 +634,24 @@ export class CableCostService {
         if (parsedImages.length === 0 && existingRecord.image_urls && existingRecord.image_urls.length > 0) {
           parsedPayload.image_urls = existingRecord.image_urls;
         }
+        if (subProductId) {
+          parsedPayload.sub_product_id = subProductId;
+          parsedPayload.sub_product_name = subProductName;
+        } else if (existingRecord.sub_product_id) {
+          parsedPayload.sub_product_id = existingRecord.sub_product_id;
+          parsedPayload.sub_product_name = existingRecord.sub_product_title || existingRecord.sub_product_name;
+        }
 
         const oldLanding = Math.round(Number(existingRecord.landing_cost) || 0);
         const oldSelling = Math.round(Number(existingRecord.selling_price) || 0);
         const hasNewImages = parsedImages.length > 0;
+        const hasSubProductChange = Number(parsedPayload.sub_product_id || 0) !== Number(existingRecord.sub_product_id || 0);
 
-        if (oldSelling !== sellingPrice || oldLanding !== landingCost || hasNewImages) {
+        if (oldSelling !== sellingPrice || oldLanding !== landingCost || hasNewImages || hasSubProductChange) {
           toUpdate.push({
             id: existingRecord.id,
             product_name: productName,
+            sub_product_name: parsedPayload.sub_product_name || existingRecord.sub_product_title || '',
             part_code: partCode,
             old_landing_cost: oldLanding,
             new_landing_cost: landingCost,

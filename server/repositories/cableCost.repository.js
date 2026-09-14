@@ -67,7 +67,6 @@ export class CableCostRepository {
 
   /**
    * Paginated & lightweight Cable Cost overview list query
-   * Only selects the displayed columns (product_name, part_code, motor_type, frame_size, cable_dimension, landing_cost, selling_price)
    */
   async findAll({
     page = 1,
@@ -75,6 +74,7 @@ export class CableCostRepository {
     offset = 0,
     productName = 'ALL',
     partCode = 'ALL',
+    subProductId = 'ALL',
   } = {}) {
     const whereClauses = ['p.deleted_at IS NULL'];
     const params = [];
@@ -89,14 +89,22 @@ export class CableCostRepository {
       params.push(partCode);
     }
 
+    if (subProductId && subProductId !== 'ALL') {
+      whereClauses.push('pcc.sub_product_id = ?');
+      params.push(subProductId);
+    }
+
     const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
 
     const sql = `
-      SELECT pcc.id, pcc.product_id, pcc.part_code, pcc.motor_type, pcc.frame_size,
+      SELECT pcc.id, pcc.product_id, pcc.sub_product_id, pcc.sub_product_name,
+             pcc.part_code, pcc.motor_type, pcc.frame_size,
              pcc.cable_dimension, pcc.landing_cost, pcc.selling_price, pcc.updated_at,
-             p.product_name, p.model_number, p.slug as product_slug
+             p.product_name, p.model_number, p.slug as product_slug,
+             sp.name as sub_product_title, sp.model_code as sub_product_model_code
       FROM product_cable_costs pcc
       JOIN products p ON pcc.product_id = p.id
+      LEFT JOIN sub_products sp ON pcc.sub_product_id = sp.id AND sp.deleted_at IS NULL
       ${whereSql}
       ORDER BY p.product_name ASC, pcc.updated_at DESC
       LIMIT ? OFFSET ?
@@ -106,6 +114,7 @@ export class CableCostRepository {
       SELECT COUNT(*) as total
       FROM product_cable_costs pcc
       JOIN products p ON pcc.product_id = p.id
+      LEFT JOIN sub_products sp ON pcc.sub_product_id = sp.id AND sp.deleted_at IS NULL
       ${whereSql}
     `;
 
@@ -129,7 +138,7 @@ export class CableCostRepository {
    */
   async getFilterOptions(productName = 'ALL') {
     const productsSql = `
-      SELECT DISTINCT p.product_name
+      SELECT DISTINCT p.id as product_id, p.product_name
       FROM product_cable_costs pcc
       JOIN products p ON pcc.product_id = p.id
       WHERE p.deleted_at IS NULL
@@ -152,6 +161,19 @@ export class CableCostRepository {
 
     const partRows = await query(partCodesSql, partParams);
 
+    // Fetch sub-products for product if filtered
+    let subProducts = [];
+    if (productName && productName !== 'ALL') {
+      const spSql = `
+        SELECT sp.id, sp.name, sp.model_code
+        FROM sub_products sp
+        JOIN products p ON sp.product_id = p.id
+        WHERE p.product_name = ? AND sp.deleted_at IS NULL AND sp.status = 'ACTIVE'
+        ORDER BY sp.sort_order ASC, sp.name ASC
+      `;
+      subProducts = await query(spSql, [productName]);
+    }
+
     const totalCountSql = `
       SELECT COUNT(*) as total
       FROM product_cable_costs pcc
@@ -163,6 +185,7 @@ export class CableCostRepository {
     return {
       productNames: productRows.map((r) => r.product_name).filter(Boolean),
       partCodes: partRows.map((r) => r.part_code).filter(Boolean),
+      subProducts: subProducts || [],
       totalCount: Number(totalRes[0]?.total || 0),
     };
   }
@@ -186,10 +209,12 @@ export class CableCostRepository {
 
     const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
     const sql = `
-      SELECT pcc.*, p.product_name, p.model_number, p.slug as product_slug, p.price as current_product_price, c.name as category_name
+      SELECT pcc.*, p.product_name, p.model_number, p.slug as product_slug, p.price as current_product_price, c.name as category_name,
+             sp.name as sub_product_title, sp.model_code as sub_product_model_code
       FROM product_cable_costs pcc
       JOIN products p ON pcc.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN sub_products sp ON pcc.sub_product_id = sp.id AND sp.deleted_at IS NULL
       ${whereSql}
       ORDER BY p.product_name ASC, pcc.updated_at DESC
     `;
@@ -200,9 +225,11 @@ export class CableCostRepository {
 
   async findByProductId(productId) {
     const sql = `
-      SELECT pcc.*, p.product_name, p.model_number, p.slug as product_slug, p.price as current_product_price
+      SELECT pcc.*, p.product_name, p.model_number, p.slug as product_slug, p.price as current_product_price,
+             sp.name as sub_product_title, sp.model_code as sub_product_model_code
       FROM product_cable_costs pcc
       JOIN products p ON pcc.product_id = p.id
+      LEFT JOIN sub_products sp ON pcc.sub_product_id = sp.id AND sp.deleted_at IS NULL
       WHERE pcc.product_id = ? AND p.deleted_at IS NULL
       ORDER BY pcc.updated_at DESC
     `;
@@ -213,9 +240,11 @@ export class CableCostRepository {
 
   async findById(id) {
     const sql = `
-      SELECT pcc.*, p.product_name, p.model_number, p.slug as product_slug, p.price as current_product_price
+      SELECT pcc.*, p.product_name, p.model_number, p.slug as product_slug, p.price as current_product_price,
+             sp.name as sub_product_title, sp.model_code as sub_product_model_code
       FROM product_cable_costs pcc
       JOIN products p ON pcc.product_id = p.id
+      LEFT JOIN sub_products sp ON pcc.sub_product_id = sp.id AND sp.deleted_at IS NULL
       WHERE pcc.id = ? AND p.deleted_at IS NULL
       LIMIT 1
     `;
@@ -232,6 +261,8 @@ export class CableCostRepository {
 
     const sellingPrice = data.selling_price !== undefined && data.selling_price !== null ? Number(data.selling_price) : 0;
     const landingCost = data.landing_cost !== undefined && data.landing_cost !== null ? Number(data.landing_cost) : 0;
+    const subProductId = data.sub_product_id ? Number(data.sub_product_id) : null;
+    const subProductName = data.sub_product_name ? String(data.sub_product_name).trim() : null;
 
     let imageUrlsArr = [];
     if (Array.isArray(data.image_urls)) {
@@ -255,6 +286,8 @@ export class CableCostRepository {
       // Update existing variant record by primary key id
       const updateSql = `
         UPDATE product_cable_costs SET
+          sub_product_id = ?,
+          sub_product_name = ?,
           frame_size = ?,
           motor_type = ?,
           part_code = ?,
@@ -277,6 +310,8 @@ export class CableCostRepository {
       `;
 
       const updateParams = [
+        subProductId,
+        subProductName,
         data.frame_size ? String(data.frame_size).trim() : null,
         data.motor_type ? String(data.motor_type).trim() : null,
         data.part_code ? String(data.part_code).trim() : null,
@@ -301,8 +336,8 @@ export class CableCostRepository {
 
       await query(updateSql, updateParams);
 
-      // Automatically sync images across all sibling length variants of the same model template
-      if (imageUrl && data.product_id && data.part_code) {
+      // Automatically sync images and sub-product mapping across all sibling length variants of the same model template
+      if (data.product_id && data.part_code) {
         try {
           const baseTemplate = getBasePartCodeTemplate(data.part_code);
           const siblings = await query(
@@ -320,10 +355,29 @@ export class CableCostRepository {
 
           if (siblingIds.length > 0) {
             const placeholders = siblingIds.map(() => '?').join(',');
-            await query(`UPDATE product_cable_costs SET image_url = ? WHERE id IN (${placeholders})`, [imageUrl, ...siblingIds]);
+            const setClauses = [];
+            const setParams = [];
+
+            if (imageUrl) {
+              setClauses.push('image_url = ?');
+              setParams.push(imageUrl);
+            }
+            if (subProductId !== undefined) {
+              setClauses.push('sub_product_id = ?');
+              setParams.push(subProductId);
+              setClauses.push('sub_product_name = ?');
+              setParams.push(subProductName);
+            }
+
+            if (setClauses.length > 0) {
+              await query(
+                `UPDATE product_cable_costs SET ${setClauses.join(', ')} WHERE id IN (${placeholders})`,
+                [...setParams, ...siblingIds]
+              );
+            }
           }
         } catch (syncErr) {
-          console.warn('Could not sync images to sibling variants:', syncErr.message);
+          console.warn('Could not sync images and sub-product to sibling variants:', syncErr.message);
         }
       }
 
@@ -355,15 +409,17 @@ export class CableCostRepository {
       // Insert new variant record for product_id
       const insertSql = `
         INSERT INTO product_cable_costs (
-          product_id, frame_size, motor_type, part_code, default_length,
+          product_id, sub_product_id, sub_product_name, frame_size, motor_type, part_code, default_length,
           cable_dimension, cable_cost_per_meter, connector1_name, connector1_cost,
           connector2_name, connector2_cost, labour_cost, battery_name, battery_cost,
           margin_percentage, additional_components, selling_price, landing_cost, image_url
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const insertParams = [
         data.product_id,
+        subProductId,
+        subProductName,
         data.frame_size ? String(data.frame_size).trim() : null,
         data.motor_type ? String(data.motor_type).trim() : null,
         data.part_code ? String(data.part_code).trim() : null,
@@ -387,8 +443,8 @@ export class CableCostRepository {
       const res = await query(insertSql, insertParams);
       const insertedId = res.insertId;
 
-      // Sync effectiveImageUrl to any other sibling variants if present
-      if (effectiveImageUrl && data.product_id && data.part_code) {
+      // Sync effectiveImageUrl and sub-product mapping to any other sibling variants if present
+      if (data.product_id && data.part_code) {
         try {
           const baseTemplate = getBasePartCodeTemplate(data.part_code);
           const siblings = await query(
@@ -406,10 +462,29 @@ export class CableCostRepository {
 
           if (siblingIds.length > 0) {
             const placeholders = siblingIds.map(() => '?').join(',');
-            await query(`UPDATE product_cable_costs SET image_url = ? WHERE id IN (${placeholders})`, [effectiveImageUrl, ...siblingIds]);
+            const setClauses = [];
+            const setParams = [];
+
+            if (effectiveImageUrl) {
+              setClauses.push('image_url = ?');
+              setParams.push(effectiveImageUrl);
+            }
+            if (subProductId !== undefined) {
+              setClauses.push('sub_product_id = ?');
+              setParams.push(subProductId);
+              setClauses.push('sub_product_name = ?');
+              setParams.push(subProductName);
+            }
+
+            if (setClauses.length > 0) {
+              await query(
+                `UPDATE product_cable_costs SET ${setClauses.join(', ')} WHERE id IN (${placeholders})`,
+                [...setParams, ...siblingIds]
+              );
+            }
           }
         } catch (syncErr) {
-          console.warn('Could not sync images to sibling variants:', syncErr.message);
+          console.warn('Could not sync images and sub-product to sibling variants:', syncErr.message);
         }
       }
 

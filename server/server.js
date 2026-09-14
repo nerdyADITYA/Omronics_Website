@@ -33,12 +33,48 @@ async function runAutoMigrations() {
 
     try {
       await query(`
-        DELETE FROM product_images
-        WHERE display_order = 99 OR alt_text LIKE '%Variant%'
+        ALTER TABLE website_settings
+        ADD COLUMN IF NOT EXISTS is_maintenance_mode TINYINT(1) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS maintenance_title VARCHAR(255) DEFAULT 'Website Under Scheduled Maintenance',
+        ADD COLUMN IF NOT EXISTS maintenance_message TEXT DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS maintenance_contact_email VARCHAR(255) DEFAULT 'sales@omronics.com',
+        ADD COLUMN IF NOT EXISTS maintenance_contact_phone VARCHAR(100) DEFAULT '+91 9512953737'
       `);
-      logger.info('✅ Cleaned up variant images from main product catalog table.');
     } catch (e) {
-      // Cleanup catch
+      // Settings columns catch
+    }
+
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS sub_products (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          product_id INT NOT NULL,
+          name VARCHAR(255) NOT NULL,
+          slug VARCHAR(255) NOT NULL,
+          model_code VARCHAR(100) DEFAULT NULL,
+          description TEXT DEFAULT NULL,
+          image_url TEXT DEFAULT NULL,
+          sort_order INT DEFAULT 0,
+          status ENUM('ACTIVE', 'INACTIVE') DEFAULT 'ACTIVE',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          deleted_at TIMESTAMP NULL DEFAULT NULL,
+          KEY idx_subproducts_product (product_id),
+          KEY idx_subproducts_status (status)
+        )
+      `);
+    } catch (e) {
+      // sub_products table catch
+    }
+
+    try {
+      await query(`
+        ALTER TABLE product_cable_costs
+        ADD COLUMN IF NOT EXISTS sub_product_id INT NULL DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS sub_product_name VARCHAR(255) NULL DEFAULT NULL
+      `);
+    } catch (e) {
+      // product_cable_costs sub_product columns catch
     }
 
     logger.info('✅ Production Database Schema Verified.');
