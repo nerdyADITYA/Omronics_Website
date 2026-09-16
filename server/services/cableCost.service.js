@@ -493,7 +493,11 @@ export class CableCostService {
     const existingMap = new Map();
     (Array.isArray(existingConfigs) ? existingConfigs : []).forEach((c) => {
       if (c.part_code) {
-        existingMap.set(c.part_code.trim().toLowerCase(), c);
+        const fullKey = `${c.product_id}__${c.part_code}__${c.motor_type || ''}`.toLowerCase();
+        existingMap.set(fullKey, c);
+        if (!existingMap.has(c.part_code.trim().toLowerCase())) {
+          existingMap.set(c.part_code.trim().toLowerCase(), c);
+        }
       }
     });
 
@@ -551,40 +555,90 @@ export class CableCostService {
       const productId = matchedProduct.id;
       const canonicalProductName = matchedProduct.product_name;
 
-      // Resolve sub-product (matches by name, model_code, slug, or auto-creates if newly mentioned in Excel)
-      const subProductName = getVal('sub_product_name', 'Sub-Product Name', 'sub_product', 'sub_product_title', 'Sub-Product (Series)', 'Sub-Product', 'Sub Product', 'Model Series', 'series', 'subproduct') || null;
+      // Resolve sub-product from column (supports various header names, typos, and formatting)
+      const getSubProductVal = () => {
+        const direct = getVal(
+          'sub_product_name', 'sub_product', 'subproduct', 'sub_products', 'subproducts',
+          'sub_product_title', 'sub_product_series', 'model_series', 'series', 'series_name',
+          'subproduct_name', 'sub_product_model', 'subproct', 'sub_proct', 'series_title'
+        );
+        if (direct) return direct;
+
+        // Dynamic heuristic: check if any column header contains "sub" or "series"
+        for (const colKey of Object.keys(row)) {
+          const cleanK = colKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (
+            (cleanK.includes('sub') && (cleanK.includes('prod') || cleanK.includes('proc') || cleanK.includes('seri') || cleanK.includes('model'))) ||
+            cleanK === 'series' || cleanK === 'modelseries'
+          ) {
+            const v = String(row[colKey] !== undefined && row[colKey] !== null ? row[colKey] : '').trim();
+            if (v) return v;
+          }
+        }
+        return '';
+      };
+
+      const rawSubProductName = getSubProductVal() || null;
       let subProductId = null;
-      if (subProductName && subProductName.trim() && productId) {
-        const spTrimmed = subProductName.trim();
-        const spKey = `${productId}__${spTrimmed.toLowerCase()}`;
-        if (subProductMap.has(spKey)) {
-          subProductId = subProductMap.get(spKey);
-        } else {
-          // Check if matches existing sub-product by model_code, slug, or substring
-          const found = subProducts.find(
-            (sp) => sp.product_id === productId && (
-              (sp.name && sp.name.trim().toLowerCase() === spTrimmed.toLowerCase()) ||
-              (sp.model_code && sp.model_code.trim().toLowerCase() === spTrimmed.toLowerCase()) ||
-              (sp.slug && sp.slug.trim().toLowerCase() === spTrimmed.toLowerCase()) ||
-              spTrimmed.toLowerCase().includes(sp.name.trim().toLowerCase()) ||
-              sp.name.trim().toLowerCase().includes(spTrimmed.toLowerCase())
-            )
+      let canonicalSubProductName = rawSubProductName;
+
+      if (rawSubProductName && rawSubProductName.trim() && productId) {
+        const spTrimmed = rawSubProductName.trim();
+        const targetClean = spTrimmed.toLowerCase().replace(/[\s/_-]+/g, ' ').trim();
+        const targetStrip = spTrimmed.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        // 1. Check existing sub-products belonging to this product
+        let found = subProducts.find((sp) => {
+          if (String(sp.product_id) !== String(productId)) return false;
+          const spClean = (sp.name || '').toLowerCase().replace(/[\s/_-]+/g, ' ').trim();
+          const spStrip = (sp.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const slugStrip = (sp.slug || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const modelStrip = (sp.model_code || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          return (
+            spClean === targetClean ||
+            spStrip === targetStrip ||
+            (slugStrip && slugStrip === targetStrip) ||
+            (modelStrip && modelStrip === targetStrip)
           );
-          if (found) {
-            subProductId = found.id;
-            subProductMap.set(spKey, found.id);
-          } else {
-            // Auto-create sub_product in the database so that the part code is immediately mapped to it
-            try {
-              const slug = spTrimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `series-${Date.now()}`;
+        });
+
+        // 2. Substring / containment fallback
+        if (!found) {
+          found = subProducts.find((sp) => {
+            if (String(sp.product_id) !== String(productId)) return false;
+            const spStrip = (sp.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            return (
+              (targetStrip.length >= 3 && spStrip.includes(targetStrip)) ||
+              (spStrip.length >= 3 && targetStrip.includes(spStrip))
+            );
+          });
+        }
+
+        if (found) {
+          subProductId = found.id;
+          canonicalSubProductName = found.name;
+        } else {
+          // Auto-create sub_product safely without duplicate slug crash
+          try {
+            const baseSlug = spTrimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'series';
+            const uniqueSlug = `${baseSlug}-${productId}`;
+            // Check if already in database by name or slug
+            const existingSpRows = await query(
+              'SELECT id, name FROM sub_products WHERE product_id = ? AND (LOWER(TRIM(name)) = LOWER(?) OR slug = ? OR slug = ?)',
+              [productId, spTrimmed, baseSlug, uniqueSlug]
+            );
+            if (existingSpRows.length > 0) {
+              subProductId = existingSpRows[0].id;
+              canonicalSubProductName = existingSpRows[0].name;
+            } else {
               const insertSpSql = `INSERT INTO sub_products (product_id, name, slug, status) VALUES (?, ?, ?, 'ACTIVE')`;
-              const spRes = await query(insertSpSql, [productId, spTrimmed, slug]);
+              const spRes = await query(insertSpSql, [productId, spTrimmed, uniqueSlug]);
               subProductId = spRes.insertId;
-              subProductMap.set(spKey, subProductId);
-              subProducts.push({ id: subProductId, product_id: productId, name: spTrimmed, slug });
-            } catch (spErr) {
-              console.warn('Could not auto-create sub_product during import:', spErr.message);
+              canonicalSubProductName = spTrimmed;
+              subProducts.push({ id: subProductId, product_id: productId, name: spTrimmed, slug: uniqueSlug });
             }
+          } catch (spErr) {
+            console.warn('Could not resolve or auto-create sub_product during import:', spErr.message);
           }
         }
       }
@@ -657,7 +711,7 @@ export class CableCostService {
         product_id: productId,
         product_name: canonicalProductName || productName,
         sub_product_id: subProductId,
-        sub_product_name: subProductName,
+        sub_product_name: canonicalSubProductName || rawSubProductName || null,
         part_code: partCode,
         frame_size: frameSize,
         motor_type: motorType,
@@ -678,7 +732,8 @@ export class CableCostService {
         image_urls: parsedImages,
       };
 
-      const existingRecord = existingMap.get(partCode.toLowerCase());
+      const fullExistingKey = `${productId}__${partCode}__${motorType || ''}`.toLowerCase();
+      const existingRecord = existingMap.get(fullExistingKey) || existingMap.get(partCode.toLowerCase());
 
       if (!existingRecord) {
         toInsert.push(parsedPayload);
@@ -690,7 +745,7 @@ export class CableCostService {
         }
         if (subProductId) {
           parsedPayload.sub_product_id = subProductId;
-          parsedPayload.sub_product_name = subProductName;
+          parsedPayload.sub_product_name = canonicalSubProductName || rawSubProductName;
         } else if (existingRecord.sub_product_id) {
           parsedPayload.sub_product_id = existingRecord.sub_product_id;
           parsedPayload.sub_product_name = existingRecord.sub_product_title || existingRecord.sub_product_name;

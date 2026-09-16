@@ -1931,9 +1931,9 @@ export function CableCalculator() {
                           <span className="font-bold text-[#113F67] dark:text-slate-100 block text-[11px] leading-snug break-words">
                             {c.product_name}
                           </span>
-                          {c.sub_product_name && (
+                          {(c.sub_product_name || c.sub_product_title) && (
                             <span className="inline-block mt-0.5 px-1.5 py-0.2 bg-sky-50 dark:bg-sky-950/80 text-[#226597] dark:text-[#38bdf8] text-[9.5px] font-bold rounded border border-sky-200/60 dark:border-sky-800/40">
-                              {c.sub_product_name}
+                              {c.sub_product_name || c.sub_product_title}
                             </span>
                           )}
                         </td>
