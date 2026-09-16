@@ -1,5 +1,5 @@
 import { query } from '../config/database.js';
-import { getBasePartCodeTemplate } from '../utils/partCode.js';
+import { getBasePartCodeTemplate, getModelGroupKey } from '../utils/partCode.js';
 
 export class CableCostRepository {
   formatRow(row) {
@@ -40,26 +40,35 @@ export class CableCostRepository {
   applyModelLevelImageInheritance(rows) {
     if (!Array.isArray(rows) || rows.length === 0) return rows;
 
-    const modelImageMap = new Map();
+    const specificMap = new Map(); // product_id + baseTemplate + motor_type
+    const generalMap = new Map();  // product_id + baseTemplate fallback
+
     rows.forEach((r) => {
       const baseTemplate = getBasePartCodeTemplate(r.part_code);
-      const groupKey = `${r.product_id}__${baseTemplate}__${r.motor_type || ''}__${r.frame_size || ''}`.toLowerCase();
-      if (Array.isArray(r.image_urls) && r.image_urls.length > 0 && !modelImageMap.has(groupKey)) {
-        modelImageMap.set(groupKey, r.image_urls);
+      const specificKey = `${r.product_id}__${getModelGroupKey(r.part_code, r.motor_type)}`;
+      const generalKey = `${r.product_id}__${baseTemplate.toLowerCase()}`;
+
+      if (Array.isArray(r.image_urls) && r.image_urls.length > 0) {
+        if (!specificMap.has(specificKey)) specificMap.set(specificKey, r.image_urls);
+        if (!generalMap.has(generalKey)) generalMap.set(generalKey, r.image_urls);
       }
     });
 
     return rows.map((r) => {
       const baseTemplate = getBasePartCodeTemplate(r.part_code);
-      const groupKey = `${r.product_id}__${baseTemplate}__${r.motor_type || ''}__${r.frame_size || ''}`.toLowerCase();
-      if ((!Array.isArray(r.image_urls) || r.image_urls.length === 0) && modelImageMap.has(groupKey)) {
-        const inherited = modelImageMap.get(groupKey);
-        return {
-          ...r,
-          image_urls: inherited,
-          image_url: JSON.stringify(inherited),
-          primary_image: inherited[0] || null,
-        };
+      const specificKey = `${r.product_id}__${getModelGroupKey(r.part_code, r.motor_type)}`;
+      const generalKey = `${r.product_id}__${baseTemplate.toLowerCase()}`;
+
+      if (!Array.isArray(r.image_urls) || r.image_urls.length === 0) {
+        const inherited = specificMap.get(specificKey) || generalMap.get(generalKey);
+        if (inherited) {
+          return {
+            ...r,
+            image_urls: inherited,
+            image_url: JSON.stringify(inherited),
+            primary_image: inherited[0] || null,
+          };
+        }
       }
       return r;
     });
@@ -344,12 +353,10 @@ export class CableCostRepository {
             'SELECT id, part_code, motor_type, frame_size FROM product_cable_costs WHERE product_id = ? AND id != ?',
             [data.product_id, data.id]
           );
-          const targetKey = `${baseTemplate}__${data.motor_type || ''}__${data.frame_size || ''}`.toLowerCase();
+          const targetKey = getModelGroupKey(data.part_code, data.motor_type);
           const siblingIds = siblings
             .filter((s) => {
-              const sBase = getBasePartCodeTemplate(s.part_code);
-              const sKey = `${sBase}__${s.motor_type || ''}__${s.frame_size || ''}`.toLowerCase();
-              return sKey === targetKey;
+              return getModelGroupKey(s.part_code, s.motor_type) === targetKey;
             })
             .map((s) => s.id);
 
@@ -392,11 +399,10 @@ export class CableCostRepository {
             'SELECT id, part_code, motor_type, frame_size, image_url FROM product_cable_costs WHERE product_id = ? AND image_url IS NOT NULL',
             [data.product_id]
           );
-          const targetKey = `${baseTemplate}__${data.motor_type || ''}__${data.frame_size || ''}`.toLowerCase();
+          const targetKey = baseTemplate.toLowerCase();
           const matchWithImg = siblings.find((s) => {
             const sBase = getBasePartCodeTemplate(s.part_code);
-            const sKey = `${sBase}__${s.motor_type || ''}__${s.frame_size || ''}`.toLowerCase();
-            return sKey === targetKey && s.image_url;
+            return sBase.toLowerCase() === targetKey && s.image_url;
           });
           if (matchWithImg) {
             effectiveImageUrl = matchWithImg.image_url;
@@ -451,12 +457,10 @@ export class CableCostRepository {
             'SELECT id, part_code, motor_type, frame_size FROM product_cable_costs WHERE product_id = ? AND id != ?',
             [data.product_id, insertedId]
           );
-          const targetKey = `${baseTemplate}__${data.motor_type || ''}__${data.frame_size || ''}`.toLowerCase();
+          const targetKey = getModelGroupKey(data.part_code, data.motor_type);
           const siblingIds = siblings
             .filter((s) => {
-              const sBase = getBasePartCodeTemplate(s.part_code);
-              const sKey = `${sBase}__${s.motor_type || ''}__${s.frame_size || ''}`.toLowerCase();
-              return sKey === targetKey;
+              return getModelGroupKey(s.part_code, s.motor_type) === targetKey;
             })
             .map((s) => s.id);
 
@@ -496,6 +500,43 @@ export class CableCostRepository {
     const sql = `DELETE FROM product_cable_costs WHERE id = ?`;
     await query(sql, [id]);
     return { success: true, deleted_id: id };
+  }
+
+  async bulkDelete({ productName, partCode, ids = [] }) {
+    if (Array.isArray(ids) && ids.length > 0) {
+      const placeholders = ids.map(() => '?').join(',');
+      const res = await query(`DELETE FROM product_cable_costs WHERE id IN (${placeholders})`, ids);
+      return { success: true, deletedCount: Number(res.affectedRows || 0) };
+    }
+
+    if (!productName || productName === 'ALL') {
+      throw new Error('Product Name is required for bulk deletion when no row IDs are selected.');
+    }
+
+    const prodRows = await query(
+      `SELECT id FROM products 
+       WHERE (
+         LOWER(TRIM(product_name)) = LOWER(TRIM(?))
+         OR LOWER(REPLACE(product_name, '  ', ' ')) = LOWER(REPLACE(?, '  ', ' '))
+       )
+       AND deleted_at IS NULL`,
+      [productName, productName]
+    );
+    if (prodRows.length === 0) {
+      throw new Error(`Product "${productName}" not found.`);
+    }
+    const productId = prodRows[0].id;
+
+    let deleteSql = 'DELETE FROM product_cable_costs WHERE product_id = ?';
+    const params = [productId];
+
+    if (partCode && partCode !== 'ALL') {
+      deleteSql += ' AND part_code = ?';
+      params.push(partCode);
+    }
+
+    const res = await query(deleteSql, params);
+    return { success: true, deletedCount: Number(res.affectedRows || 0) };
   }
 
   async syncProductPrice(productId, calculatedSellingPrice) {

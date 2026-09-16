@@ -137,6 +137,10 @@ export class CableCostService {
     return cableCostRepository.delete(id);
   }
 
+  async bulkDeleteConfigurations({ productName, partCode, ids = [] } = {}) {
+    return cableCostRepository.bulkDelete({ productName, partCode, ids });
+  }
+
   async syncSellingPrice(productId, sellingPrice) {
     if (!productId) {
       throw new AppError('Product ID is required.', 400);
@@ -157,7 +161,7 @@ export class CableCostService {
     worksheet.columns = [
       { header: 'Variant Image', key: 'image', width: 16 },
       { header: 'Product Name', key: 'product_name', width: 24 },
-      { header: 'Sub-Product (Series)', key: 'sub_product_name', width: 24 },
+      { header: 'Sub-Product Name', key: 'sub_product_name', width: 24 },
       { header: 'Part Code', key: 'part_code', width: 24 },
       { header: 'Frame Size', key: 'frame_size', width: 24 },
       { header: 'Motor / Power Spec', key: 'motor_type', width: 32 },
@@ -189,6 +193,29 @@ export class CableCostService {
     headerRow.height = 28;
 
     const sampleRows = [
+      {
+        image: '(Paste photo here or leave blank)',
+        product_name: 'DELTA',
+        sub_product_name: 'E3/B3-SERIES',
+        part_code: 'ACS3-CAEN0105',
+        frame_size: 'E3/B3 SERIES',
+        motor_type: '100W TO 750W - INCREMENTAL',
+        default_length: 5,
+        cable_dimension: '2X2X0.20SQMM SHD',
+        cable_cost_per_meter: 80,
+        connector1_name: 'CM10-10P STRAIGHT',
+        connector1_cost: 400,
+        connector2_name: 'USB-6 PIN',
+        connector2_cost: 90,
+        labour_cost: 150,
+        battery_name: '',
+        battery_cost: 0,
+        margin_percentage: 50,
+        additional_components: '',
+        landing_cost: 1040,
+        selling_price: 1560,
+        images_text: '',
+      },
       {
         image: '(Paste photo here or leave blank)',
         product_name: 'INNOVANCE',
@@ -412,16 +439,41 @@ export class CableCostService {
     }
 
     // Fetch all active products
-    const productsSql = `SELECT id, product_name FROM products WHERE deleted_at IS NULL`;
+    const productsSql = `SELECT id, product_name, slug FROM products WHERE deleted_at IS NULL`;
     const products = await query(productsSql);
 
-    // Map lower-case product name -> product id
-    const productMap = new Map();
-    products.forEach((p) => {
-      if (p.product_name) {
-        productMap.set(p.product_name.trim().toLowerCase(), p.id);
-      }
-    });
+    const normalizeStr = (s) => (s || '').toString().toLowerCase().replace(/\s+/g, ' ').trim();
+    const stripStr = (s) => (s || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    const resolveProduct = (inputName) => {
+      if (!inputName) return null;
+      const cleanInput = normalizeStr(inputName);
+      const stripInput = stripStr(inputName);
+
+      // 1. Exact normalized match (handles extra internal spaces / tabs)
+      let match = products.find((p) => normalizeStr(p.product_name) === cleanInput);
+      if (match) return match;
+
+      // 2. Alphanumeric stripped match
+      match = products.find((p) => stripStr(p.product_name) === stripInput);
+      if (match) return match;
+
+      // 3. Brand shorthand or prefix / plural match (e.g. 'DELTA', 'DELTA SERVO CABLES')
+      const candidates = products.filter((p) => {
+        const pClean = normalizeStr(p.product_name);
+        const pStrip = stripStr(p.product_name);
+        return (
+          pClean.startsWith(cleanInput) ||
+          cleanInput.startsWith(pClean) ||
+          (stripInput.length >= 4 && pStrip.startsWith(stripInput)) ||
+          (pStrip.length >= 4 && stripInput.startsWith(pStrip)) ||
+          cleanInput.replace(/s$/, '') === pClean.replace(/s$/, '')
+        );
+      });
+
+      if (candidates.length === 1) return candidates[0];
+      return null;
+    };
 
     // Fetch existing sub-products
     let subProducts = [];
@@ -488,17 +540,19 @@ export class CableCostService {
         continue;
       }
 
-      const productId = productMap.get(productName.toLowerCase());
-      if (!productId) {
+      const matchedProduct = resolveProduct(productName);
+      if (!matchedProduct) {
         errors.push({
           row: rowNum,
           message: `Product "${productName}" not found in catalog. Create product first.`,
         });
         continue;
       }
+      const productId = matchedProduct.id;
+      const canonicalProductName = matchedProduct.product_name;
 
       // Resolve sub-product (matches by name, model_code, slug, or auto-creates if newly mentioned in Excel)
-      const subProductName = getVal('sub_product_name', 'sub_product', 'Sub-Product (Series)', 'Sub-Product', 'Sub Product', 'Model Series', 'series', 'subproduct') || null;
+      const subProductName = getVal('sub_product_name', 'Sub-Product Name', 'sub_product', 'sub_product_title', 'Sub-Product (Series)', 'Sub-Product', 'Sub Product', 'Model Series', 'series', 'subproduct') || null;
       let subProductId = null;
       if (subProductName && subProductName.trim() && productId) {
         const spTrimmed = subProductName.trim();
@@ -601,7 +655,7 @@ export class CableCostService {
 
       const parsedPayload = {
         product_id: productId,
-        product_name: productName,
+        product_name: canonicalProductName || productName,
         sub_product_id: subProductId,
         sub_product_name: subProductName,
         part_code: partCode,

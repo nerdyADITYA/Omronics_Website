@@ -31,129 +31,13 @@ import {
 import * as XLSX from 'xlsx';
 import api from '../../services/api';
 
-// Function to compute canonical base model template (e.g. S6-L-B107-20.0 -> S6-L-B107-xx.x, VW3M8B11Rxx -> VW3M8B11Rxx)
-function getBasePartCodeTemplate(partCode) {
-  if (!partCode) return '';
-  let str = String(partCode).trim();
+import {
+  getBasePartCodeTemplate,
+  formatPartCodeWithLength,
+  getVariantLength,
+  getModelGroupKey,
+} from '../../utils/partCode';
 
-  // 1. If partCode already contains explicit wildcard ('xx.x', 'xxM', 'xxx', or 'xx'),
-  // it is ALREADY the canonical base model template! (e.g. VW3M8B11Rxx, S6-L-B107-xx.x, MR-J3ENSCBLxxM-L)
-  if (/xx/i.test(str)) {
-    return str;
-  }
-
-  // 2. Trailing decimal length like S6-L-B107-20.0 or S6-L-B107-05.0 -> S6-L-B107-xx.x
-  if (/-\d{1,2}\.\d+$/.test(str)) {
-    return str.replace(/-\d{1,2}\.\d+$/, '-xx.x');
-  }
-
-  // 3. Trailing dash like S6-L-B107- -> S6-L-B107-xx.x
-  if (str.endsWith('-')) {
-    return `${str}xx.x`;
-  }
-
-  // 4. Schneider / Lexium / Delta trailing R03, R05, R10, R20, R30 -> Rxx
-  if (/R\d{2}$/i.test(str)) {
-    return str.replace(/R\d{2}$/i, 'Rxx');
-  }
-
-  // 5. Mitsubishi / Panasonic specific infix: CBL<len>M- or -<len>M- or -<len>M$ (e.g. MR-J3ENSCBL5M-L -> MR-J3ENSCBLxxM-L)
-  if (/(CBL|-)\d+M(-|$)/i.test(str)) {
-    return str.replace(/(CBL|-)\d+M(-|$)/gi, '$1xxM$2');
-  }
-
-  // 6. Trailing integer length like CBL-5 -> CBL-xxM
-  if (/-\d+$/.test(str)) {
-    return str.replace(/-\d+$/, '-xxM');
-  }
-
-  return str;
-}
-
-// Universal Multi-OEM Part Code Length Formatter
-function formatPartCodeWithLength(basePartCode, length) {
-  if (!basePartCode) return '';
-  const lenNum = Number(length) || 5;
-  const decimalSuffix = lenNum < 10 ? `0${lenNum.toFixed(1)}` : `${lenNum.toFixed(1)}`;
-  const twoDigitSuffix = lenNum < 10 ? `0${Math.round(lenNum)}` : `${Math.round(lenNum)}`;
-  const threeDigitSuffix = lenNum < 10 ? `00${Math.round(lenNum)}` : lenNum < 100 ? `0${Math.round(lenNum)}` : `${Math.round(lenNum)}`;
-  const meterSuffix = `${lenNum}M`;
-
-  let result = String(basePartCode).trim();
-
-  // 1. Explicit 'xx.x' wildcard (e.g. S6-L-B107-xx.x -> S6-L-B107-20.0)
-  if (/xx\.x/i.test(result)) {
-    return result.replace(/xx\.x/gi, decimalSuffix);
-  }
-
-  // 2. Explicit 'xxM' wildcard (e.g. MR-J3ENSCBLxxM-L -> MR-J3ENSCBL20M-L)
-  if (/xxM/i.test(result)) {
-    return result.replace(/xxM/gi, meterSuffix);
-  }
-
-  // 3. Explicit 'xxx' wildcard (e.g. CBL-xxx-PWR -> CBL-020-PWR)
-  if (/xxx/i.test(result)) {
-    return result.replace(/xxx/gi, threeDigitSuffix);
-  }
-
-  // 4. Explicit 'xx' wildcard anywhere (e.g. VW3M8B11Rxx -> VW3M8B11R05 / VW3M8B11R20, or CBLxx-PWR)
-  if (/xx/i.test(result)) {
-    return result.replace(/xx/gi, twoDigitSuffix);
-  }
-
-  // 5. Trailing decimal like "-05.0" (e.g. S6-L-B107-05.0 -> S6-L-B107-20.0)
-  if (/-\d{1,2}\.\d+$/.test(result)) {
-    return result.replace(/-\d{1,2}\.\d+$/, `-${decimalSuffix}`);
-  }
-
-  // 6. Trailing R03, R05, R10, R20 (e.g. VW3M8B11R05 -> VW3M8B11R20)
-  if (/R\d{2}$/i.test(result)) {
-    return result.replace(/R\d{2}$/i, `R${twoDigitSuffix}`);
-  }
-
-  // 7. Mitsubishi / Panasonic specific infix: CBL<len>M- or -<len>M- or -<len>M$ (e.g. MR-J3ENSCBL5M-L -> MR-J3ENSCBL20M-L)
-  if (/(CBL|-)\d+M(-|$)/i.test(result)) {
-    return result.replace(/(CBL|-)\d+M(-|$)/gi, `$1${meterSuffix}$2`);
-  }
-
-  // 8. Trailing Dash
-  if (result.endsWith('-')) {
-    return `${result}${decimalSuffix}`;
-  }
-
-  // 9. Trailing integer like "-5" (e.g. CBL-5 -> CBL-20)
-  if (/-\d+$/.test(result)) {
-    return result.replace(/-\d+$/, `-${lenNum}`);
-  }
-
-  return `${result}-${meterSuffix}`;
-}
-
-function getVariantLength(variant) {
-  if (!variant) return 5;
-  if (variant.default_length !== undefined && variant.default_length !== null && !isNaN(Number(variant.default_length))) {
-    const dLen = Number(variant.default_length);
-    if (dLen > 0) return dLen;
-  }
-  const pc = String(variant.part_code || '');
-
-  // If part code has explicit wildcard 'xx', default to 5
-  if (/xx/i.test(pc)) return 5;
-
-  // Check Schneider / Lexium trailing R03, R05, R10, R20
-  const rMatch = pc.match(/R(\d{2})$/i);
-  if (rMatch) return Number(rMatch[1]);
-
-  // Check decimal suffix: -05.0, -20.0
-  const decMatch = pc.match(/-(\d{1,2})\.\d+$/);
-  if (decMatch) return Number(decMatch[1]);
-
-  // Check Mitsubishi / Panasonic specific infix: CBL<len>M- or -<len>M- or -<len>M$
-  const mMatch = pc.match(/(?:CBL|-)(\d+)M(?:-|$)/i);
-  if (mMatch) return Number(mMatch[1]);
-
-  return 5;
-}
 
 export function CableCalculator() {
   const [activeTab, setActiveTab] = useState('calculator'); // 'calculator' | 'setup'
@@ -181,6 +65,11 @@ export function CableCalculator() {
   const [showImportGuide, setShowImportGuide] = useState(false);
   const fileInputRef = useRef(null);
   const variantImageInputRef = useRef(null);
+
+  // Bulk Deletion State
+  const [selectedRowIds, setSelectedRowIds] = useState([]);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Custom Downward Variant Dropdown Selector State
   const variantDropdownRef = useRef(null);
@@ -215,7 +104,7 @@ export function CableCalculator() {
   const seenBaseTemplates = new Set();
   productVariants.forEach((v) => {
     const baseTemplate = getBasePartCodeTemplate(v.part_code);
-    const groupKey = `${baseTemplate}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
+    const groupKey = getModelGroupKey(v.part_code, v.motor_type);
     if (!seenBaseTemplates.has(groupKey)) {
       seenBaseTemplates.add(groupKey);
       distinctModelVariants.push({
@@ -228,11 +117,10 @@ export function CableCalculator() {
 
   // Available lengths for the active selected base model
   const availableVariantsForModel = productVariants.filter((v) => {
-    const t = getBasePartCodeTemplate(v.part_code);
-    const key = `${t}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
-    return key === selectedModelKey;
+    return getModelGroupKey(v.part_code, v.motor_type) === selectedModelKey;
   });
   availableVariantsForModel.sort((a, b) => getVariantLength(a) - getVariantLength(b));
+
 
   // Smart windowed pagination helper: returns an array with ellipsis (e.g. [1, 2, 3, 4, '...', 28])
   const getPaginationPages = (current, total) => {
@@ -430,7 +318,7 @@ export function CableCalculator() {
   const loadVariantIntoForm = (variant, siblingList = productVariants) => {
     setActiveVariantId(variant.id);
     const baseTemplate = getBasePartCodeTemplate(variant.part_code);
-    const groupKey = `${baseTemplate}__${variant.motor_type || ''}__${variant.frame_size || ''}`.toLowerCase();
+    const groupKey = getModelGroupKey(variant.part_code, variant.motor_type);
     setSelectedModelKey(groupKey);
 
     let urls = [];
@@ -452,9 +340,12 @@ export function CableCalculator() {
     // Model-level image fallback: if this specific length has no images, inherit from sibling within this product
     if (urls.length === 0 && Array.isArray(siblingList)) {
       const siblingWithImages = siblingList.find((c) => {
-        const cBase = getBasePartCodeTemplate(c.part_code);
-        const cKey = `${cBase}__${c.motor_type || ''}__${c.frame_size || ''}`.toLowerCase();
-        return cKey === groupKey && (
+        return getModelGroupKey(c.part_code, c.motor_type) === groupKey && (
+          (Array.isArray(c.image_urls) && c.image_urls.length > 0) ||
+          (c.image_url && String(c.image_url).trim().length > 0)
+        );
+      }) || siblingList.find((c) => {
+        return getBasePartCodeTemplate(c.part_code).toLowerCase() === baseTemplate.toLowerCase() && (
           (Array.isArray(c.image_urls) && c.image_urls.length > 0) ||
           (c.image_url && String(c.image_url).trim().length > 0)
         );
@@ -464,8 +355,8 @@ export function CableCalculator() {
           urls = siblingWithImages.image_urls;
         } else if (siblingWithImages.image_url) {
           try {
-            const parsed = JSON.parse(siblingWithImages.image_url);
-            urls = Array.isArray(parsed) ? parsed : [siblingWithImages.image_url];
+            urls = JSON.parse(siblingWithImages.image_url);
+            if (!Array.isArray(urls)) urls = [siblingWithImages.image_url];
           } catch (e) {
             urls = [siblingWithImages.image_url];
           }
@@ -504,9 +395,7 @@ export function CableCalculator() {
       return;
     }
     const matching = productVariants.filter((v) => {
-      const t = getBasePartCodeTemplate(v.part_code);
-      const key = `${t}__${v.motor_type || ''}__${v.frame_size || ''}`.toLowerCase();
-      return key === modelKey;
+      return getModelGroupKey(v.part_code, v.motor_type) === modelKey;
     });
     if (matching.length > 0) {
       const match = matching.find((v) => getVariantLength(v) === 5) || matching[0];
@@ -694,6 +583,42 @@ export function CableCalculator() {
       setFeedback({ type: 'error', message: err.message || 'Failed to delete variant setup.' });
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    setBulkDeleting(true);
+    setFeedback(null);
+    try {
+      const payload = {};
+      if (selectedRowIds.length > 0) {
+        payload.ids = selectedRowIds;
+      } else {
+        payload.productName = filterProductName !== 'ALL' ? filterProductName : undefined;
+        payload.partCode = filterPartCode !== 'ALL' ? filterPartCode : undefined;
+      }
+
+      const res = await api.post('/cable-costs/bulk-delete', payload);
+      if (res.success) {
+        setFeedback({
+          type: 'success',
+          message: res.message || `Successfully deleted ${res.data?.deletedCount || 0} configuration(s).`,
+        });
+        setSelectedRowIds([]);
+        setShowBulkDeleteModal(false);
+        await Promise.all([
+          fetchOverviewData(1, itemsPerPage, filterProductName, filterPartCode),
+          fetchFilterOptions(filterProductName),
+          fetchProductVariants(selectedProductId),
+        ]);
+        setCurrentPage(1);
+      } else {
+        setFeedback({ type: 'error', message: res.message || 'Failed to bulk delete configurations.' });
+      }
+    } catch (err) {
+      setFeedback({ type: 'error', message: err.message || 'Failed to bulk delete configurations.' });
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -1807,7 +1732,27 @@ export function CableCalculator() {
                 <span>Export ({overviewPagination.total || totalOverviewCount})</span>
               </button>
 
-              {/* 4. Toggle Excel Field Requirements Guide */}
+              {/* 4. Bulk Delete Filtered or Selected Records */}
+              {(filterProductName !== 'ALL' || selectedRowIds.length > 0) && (
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDeleteModal(true)}
+                  disabled={bulkDeleting}
+                  className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs whitespace-nowrap shrink-0 animate-in fade-in duration-150"
+                  title="Delete filtered or selected cable cost configurations"
+                >
+                  <Trash2 className="w-3 h-3 shrink-0" />
+                  <span>
+                    {selectedRowIds.length > 0
+                      ? `Delete Selected (${selectedRowIds.length})`
+                      : filterPartCode !== 'ALL'
+                      ? `Delete Partcode (${overviewPagination.total || 0})`
+                      : `Delete All for "${filterProductName}" (${overviewPagination.total || 0})`}
+                  </span>
+                </button>
+              )}
+
+              {/* 5. Toggle Excel Field Requirements Guide */}
               <button
                 type="button"
                 onClick={() => setShowImportGuide(!showImportGuide)}
@@ -1909,16 +1854,35 @@ export function CableCalculator() {
           <div className="w-full">
             <table className="w-full table-fixed text-left text-xs text-[#113F67] dark:text-slate-200">
               <colgroup>
-                <col className="w-[17%]" />
+                <col className="w-[4%]" />
                 <col className="w-[16%]" />
-                <col className="w-[24%]" />
-                <col className="w-[21%]" />
+                <col className="w-[15%]" />
+                <col className="w-[23%]" />
+                <col className="w-[20%]" />
                 <col className="w-[7%]" />
                 <col className="w-[8%]" />
                 <col className="w-[7%]" />
               </colgroup>
               <thead className="bg-[#F3F9FB] dark:bg-[#0f1b36] uppercase text-[9px] sm:text-[10px] tracking-wider font-extrabold text-[#113F67] dark:text-[#38bdf8] border-b border-[#87C0CD]/30 dark:border-[#233554]">
                 <tr>
+                  <th className="px-2.5 py-2.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={overviewConfigurations.length > 0 && overviewConfigurations.every((c) => selectedRowIds.includes(c.id))}
+                      onChange={() => {
+                        const allOnPageIds = overviewConfigurations.map((c) => c.id);
+                        const isAllSelected = allOnPageIds.length > 0 && allOnPageIds.every((id) => selectedRowIds.includes(id));
+                        if (isAllSelected) {
+                          setSelectedRowIds(selectedRowIds.filter((id) => !allOnPageIds.includes(id)));
+                        } else {
+                          const newIds = new Set([...selectedRowIds, ...allOnPageIds]);
+                          setSelectedRowIds(Array.from(newIds));
+                        }
+                      }}
+                      className="rounded text-[#226597] focus:ring-[#226597] cursor-pointer"
+                      title="Select all on this page"
+                    />
+                  </th>
                   <th className="px-3 py-2.5">Product Name</th>
                   <th className="px-3 py-2.5">Partcode</th>
                   <th className="px-3 py-2.5">Motor Spec</th>
@@ -1931,23 +1895,38 @@ export function CableCalculator() {
               <tbody className="divide-y divide-[#87C0CD]/20 dark:divide-[#233554]">
                 {overviewLoading ? (
                   <tr>
-                    <td colSpan="7" className="px-4 py-12 text-center text-slate-500 dark:text-slate-400 text-xs">
+                    <td colSpan="8" className="px-4 py-12 text-center text-slate-500 dark:text-slate-400 text-xs">
                       <RefreshCw className="w-6 h-6 text-[#226597] animate-spin mx-auto mb-2" />
                       Loading page records...
                     </td>
                   </tr>
                 ) : overviewConfigurations.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-xs">
+                    <td colSpan="8" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-xs">
                       No variant configurations match the selected Product Name / Part Code dropdown filters.
                     </td>
                   </tr>
                 ) : (
                   overviewConfigurations.map((c) => {
                     const landingVal = c.landing_cost ? Math.round(Number(c.landing_cost)) : 0;
+                    const isRowSelected = selectedRowIds.includes(c.id);
 
                     return (
-                      <tr key={c.id} className="hover:bg-[#F3F9FB]/60 dark:hover:bg-[#0f1b36]/60 transition">
+                      <tr key={c.id} className={`transition ${isRowSelected ? 'bg-sky-50/70 dark:bg-[#1a2b4c]' : 'hover:bg-[#F3F9FB]/60 dark:hover:bg-[#0f1b36]/60'}`}>
+                        <td className="px-2.5 py-2 align-middle text-center">
+                          <input
+                            type="checkbox"
+                            checked={isRowSelected}
+                            onChange={() => {
+                              if (isRowSelected) {
+                                setSelectedRowIds(selectedRowIds.filter((id) => id !== c.id));
+                              } else {
+                                setSelectedRowIds([...selectedRowIds, c.id]);
+                              }
+                            }}
+                            className="rounded text-[#226597] focus:ring-[#226597] cursor-pointer"
+                          />
+                        </td>
                         <td className="px-3 py-2 align-middle">
                           <span className="font-bold text-[#113F67] dark:text-slate-100 block text-[11px] leading-snug break-words">
                             {c.product_name}
@@ -2298,6 +2277,80 @@ export function CableCalculator() {
                   {executingImport
                     ? 'Executing Database Upsert...'
                     : `Confirm & Execute Import (${analysisResult.toInsert.length + analysisResult.toUpdate.length} Records)`}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Safety Confirmation Modal for Bulk Delete */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs font-sans">
+          <div className="bg-white dark:bg-[#152238] border border-rose-200 dark:border-rose-900/50 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center space-x-3">
+              <div className="p-2.5 rounded-xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-[#113F67] dark:text-slate-100">
+                  Confirm Bulk Deletion
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  This action is permanent and cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-rose-50/60 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 rounded-xl space-y-2 text-xs">
+              <div className="flex justify-between items-center text-slate-700 dark:text-slate-300">
+                <span className="font-semibold">Target Scope:</span>
+                <span className="font-bold text-[#113F67] dark:text-slate-100">
+                  {selectedRowIds.length > 0
+                    ? `Selected Rows (${selectedRowIds.length})`
+                    : filterPartCode !== 'ALL'
+                    ? `Part Code: ${filterPartCode}`
+                    : `All Part Codes for: ${filterProductName}`}
+                </span>
+              </div>
+              {selectedRowIds.length === 0 && filterProductName !== 'ALL' && (
+                <div className="flex justify-between items-center text-slate-700 dark:text-slate-300">
+                  <span className="font-semibold">Product:</span>
+                  <span className="font-bold text-[#226597] dark:text-[#38bdf8]">{filterProductName}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center text-slate-700 dark:text-slate-300">
+                <span className="font-semibold">Total Records to Delete:</span>
+                <span className="font-extrabold text-rose-600 dark:text-rose-400 text-sm">
+                  {selectedRowIds.length > 0 ? selectedRowIds.length : (overviewPagination.total || 0)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                disabled={bulkDeleting}
+                onClick={() => setShowBulkDeleteModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={bulkDeleting}
+                onClick={handleConfirmBulkDelete}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+              >
+                {bulkDeleting ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                <span>
+                  {bulkDeleting
+                    ? 'Deleting Records...'
+                    : `Permanently Delete (${selectedRowIds.length > 0 ? selectedRowIds.length : (overviewPagination.total || 0)})`}
                 </span>
               </button>
             </div>

@@ -75,6 +75,16 @@ export async function deleteConfiguration(req, res) {
   }
 }
 
+export async function bulkDeleteConfigurations(req, res) {
+  try {
+    const { productName, partCode, ids } = req.body;
+    const result = await cableCostService.bulkDeleteConfigurations({ productName, partCode, ids });
+    return sendSuccess(res, result, `Successfully deleted ${result.deletedCount} cable configuration(s).`);
+  } catch (err) {
+    return sendError(res, err.message || 'Failed to bulk delete cable configurations.', err.statusCode || 500);
+  }
+}
+
 export async function syncSellingPrice(req, res) {
   try {
     const { productId, sellingPrice } = req.body;

@@ -7,6 +7,7 @@ import {
   getByProductId,
   saveConfiguration,
   deleteConfiguration,
+  bulkDeleteConfigurations,
   syncSellingPrice,
   downloadSampleTemplate,
   exportExcel,
@@ -28,6 +29,7 @@ router.get('/download-template', downloadSampleTemplate);
 router.post('/export-excel', exportExcel);
 router.get('/product/:productId', getByProductId);
 router.post('/', saveConfiguration);
+router.post('/bulk-delete', bulkDeleteConfigurations);
 router.delete('/:id', deleteConfiguration);
 router.post('/sync-price', syncSellingPrice);
 
