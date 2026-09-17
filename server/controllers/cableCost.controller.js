@@ -1,4 +1,5 @@
 import { cableCostService } from '../services/cableCost.service.js';
+import auditLogService from '../services/auditLog.service.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
 export async function getServoProducts(req, res) {
@@ -138,6 +139,28 @@ export async function executeImport(req, res) {
   try {
     const { records } = req.body;
     const result = await cableCostService.executeBatchImport(records);
+
+    req._auditLogged = true;
+    auditLogService.logAction({
+      admin_id: req.user?.id || null,
+      admin_name: req.user?.full_name || null,
+      admin_email: req.user?.email || null,
+      action: 'BULK_IMPORT',
+      entity_type: 'CableCost',
+      page: req.headers['x-admin-page'] || '/admin/cable-calculator',
+      method: 'POST',
+      endpoint: req.originalUrl,
+      ip_address: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '127.0.0.1',
+      user_agent: req.headers['user-agent'] || null,
+      status: 'SUCCESS',
+      details: {
+        totalRecords: records?.length || 0,
+        insertedCount: result?.insertedCount || 0,
+        modifiedCount: result?.modifiedCount || 0,
+        batchCount: result?.batchCount || 0,
+      },
+    });
+
     return sendSuccess(res, result, 'Batch cable configurations imported successfully.');
   } catch (err) {
     return sendError(res, err.message || 'Failed to execute batch import.', err.statusCode || 500);

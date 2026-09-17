@@ -50,10 +50,10 @@ function AdminLayoutContent() {
 
   const navItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+    { name: 'Categories', path: '/admin/categories', icon: FolderTree },
     { name: 'Products', path: '/admin/products', icon: Package },
     { name: 'Sub-Products', path: '/admin/sub-products', icon: Layers },
     { name: 'Cable Calculator', path: '/admin/cable-calculator', icon: Calculator },
-    { name: 'Categories', path: '/admin/categories', icon: FolderTree },
     { name: 'Services', path: '/admin/services', icon: Wrench },
     { name: 'Industries', path: '/admin/industries', icon: Factory },
     { name: 'Clients', path: '/admin/clients', icon: Building2 },

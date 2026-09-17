@@ -8,6 +8,7 @@ import seoController from './controllers/seo.controller.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 import { httpLogger } from './middlewares/logger.middleware.js';
 import { apiLimiter } from './middlewares/rateLimiter.middleware.js';
+import { auditMiddleware } from './middlewares/audit.middleware.js';
 import apiRoutes from './routes/index.routes.js';
 
 // Polyfill BigInt JSON serialization for Express JSON responses
@@ -41,7 +42,8 @@ app.use(
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Page', 'x-admin-page', 'Accept', 'Origin', 'X-Requested-With'],
+    exposedHeaders: ['Content-Disposition'],
   })
 );
 
@@ -93,6 +95,9 @@ app.get('/', (req, res) => {
 
 // API General Rate Limiting
 app.use('/api', apiLimiter);
+
+// Automatic Audit Logging for administrative mutations
+app.use('/api', auditMiddleware);
 
 // API v1 Routes
 app.use('/api/v1', apiRoutes);

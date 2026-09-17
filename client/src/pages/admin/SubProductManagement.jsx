@@ -17,13 +17,177 @@ import {
   AlertCircle,
   FileCode,
   Info,
+  ChevronLeft,
+  ChevronRight,
+  Image as ImageIcon,
+  Sparkles,
 } from 'lucide-react';
 import { DataTable } from '../../components/admin/DataTable';
 import { FormModal } from '../../components/admin/FormModal';
-import { MediaUploader } from '../../components/admin/MediaUploader';
+import { MultiMediaUploader } from '../../components/admin/MultiMediaUploader';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { getBasePartCodeTemplate } from '../../utils/partCode';
 import api from '../../services/api';
+
+/**
+ * Interactive 5-second auto-rotating carousel preview for the Edit/Add Sub-Product Modal
+ */
+function SubProductCarouselPreview({ images = [] }) {
+  const imgList = (Array.isArray(images) ? images : [])
+    .map((img) => (typeof img === 'object' && img !== null ? img.image_url || img.url : img))
+    .filter(Boolean);
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+
+  useEffect(() => {
+    if (imgList.length <= 1 || isHovered) return;
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % imgList.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [imgList.length, isHovered]);
+
+  if (imgList.length <= 1) return null;
+
+  const safeIndex = currentIndex >= imgList.length ? 0 : currentIndex;
+
+  return (
+    <div
+      className="relative rounded-2xl overflow-hidden border border-[#87C0CD]/40 dark:border-[#233554] bg-[#F8FAFC] dark:bg-[#070d1e] shadow-inner p-3 transition-all mb-2"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Top Status Bar */}
+      <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#87C0CD]/20 dark:border-[#233554]/50">
+        <div className="flex items-center space-x-1.5">
+          <span className="relative flex h-2 w-2">
+            <span
+              className={`animate-ping absolute inline-flex h-full w-full rounded-full ${
+                isHovered ? 'bg-amber-400' : 'bg-emerald-400'
+              } opacity-75`}
+            />
+            <span
+              className={`relative inline-flex rounded-full h-2 w-2 ${
+                isHovered ? 'bg-amber-500' : 'bg-emerald-500'
+              }`}
+            />
+          </span>
+          <span className="text-[11px] font-extrabold text-[#113F67] dark:text-slate-200 flex items-center space-x-1">
+            <span>{isHovered ? 'Carousel Paused (Hovered)' : '5s Auto-Rotating Carousel Preview'}</span>
+          </span>
+        </div>
+        <span className="text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-full bg-[#E4F1F5] dark:bg-[#152238] text-[#226597] dark:text-[#38bdf8] border border-[#87C0CD]/30">
+          Slide {safeIndex + 1} of {imgList.length}
+        </span>
+      </div>
+
+      {/* Main Image Stage */}
+      <div className="relative h-44 sm:h-52 w-full flex items-center justify-center bg-white dark:bg-[#0b1329] rounded-xl overflow-hidden shadow-xs">
+        <img
+          src={imgList[safeIndex]}
+          alt={`Sub-product preview ${safeIndex + 1}`}
+          className="max-h-full max-w-full object-contain transition-all duration-500 ease-in-out select-none"
+        />
+
+        {/* Previous Button */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setCurrentIndex((prev) => (prev - 1 + imgList.length) % imgList.length);
+          }}
+          className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-900 text-[#113F67] dark:text-slate-100 shadow-md flex items-center justify-center transition opacity-70 hover:opacity-100 cursor-pointer"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+
+        {/* Next Button */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setCurrentIndex((prev) => (prev + 1) % imgList.length);
+          }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-900 text-[#113F67] dark:text-slate-100 shadow-md flex items-center justify-center transition opacity-70 hover:opacity-100 cursor-pointer"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Navigation Dots */}
+      <div className="flex items-center justify-center space-x-1.5 pt-2.5">
+        {imgList.map((_, idx) => (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => setCurrentIndex(idx)}
+            className={`transition-all duration-300 cursor-pointer ${
+              idx === safeIndex
+                ? 'w-6 h-2 rounded-full bg-[#226597] dark:bg-[#38bdf8]'
+                : 'w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-700 hover:bg-slate-400'
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Mini auto-rotating carousel for the Datatable Image cell
+ */
+function TableMiniCarousel({ row }) {
+  const imgList = useMemo(() => {
+    if (Array.isArray(row?.image_urls) && row.image_urls.length > 0) return row.image_urls.filter(Boolean);
+    if (Array.isArray(row?.images) && row.images.length > 0) return row.images.filter(Boolean);
+    if (row?.image_url) {
+      if (typeof row.image_url === 'string' && row.image_url.trim().startsWith('[')) {
+        try {
+          const parsed = JSON.parse(row.image_url.trim());
+          if (Array.isArray(parsed)) return parsed.filter(Boolean);
+        } catch (e) {}
+      }
+      return [row.image_url].filter(Boolean);
+    }
+    return [];
+  }, [row]);
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (imgList.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % imgList.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [imgList.length]);
+
+  if (imgList.length === 0) {
+    return (
+      <div className="w-11 h-11 rounded-xl bg-[#F3F9FB] dark:bg-[#0b1329] border border-[#87C0CD]/30 dark:border-[#233554] flex items-center justify-center text-slate-400">
+        <Layers className="w-4 h-4" />
+      </div>
+    );
+  }
+
+  const safeIndex = currentIndex >= imgList.length ? 0 : currentIndex;
+
+  return (
+    <div className="relative w-12 h-12 rounded-xl bg-white dark:bg-[#0b1329] border border-[#87C0CD]/30 dark:border-[#233554] p-1 flex items-center justify-center shadow-xs overflow-hidden group">
+      <img
+        src={imgList[safeIndex]}
+        alt=""
+        className="max-h-full max-w-full object-contain transition-opacity duration-500 ease-in-out"
+      />
+      {imgList.length > 1 && (
+        <span className="absolute bottom-0 right-0 bg-emerald-600/90 text-white text-[8px] font-black px-1 rounded-tl-md tracking-tighter leading-none py-0.5 shadow-xs">
+          {safeIndex + 1}/{imgList.length}
+        </span>
+      )}
+    </div>
+  );
+}
 
 export function SubProductManagement() {
   const [subProducts, setSubProducts] = useState([]);
@@ -49,6 +213,7 @@ export function SubProductManagement() {
     slug: '',
     description: '',
     image_url: null,
+    image_urls: [],
     sort_order: 0,
     status: 'ACTIVE',
   });
@@ -194,6 +359,7 @@ export function SubProductManagement() {
       slug: '',
       description: '',
       image_url: null,
+      image_urls: [],
       sort_order: 0,
       status: 'ACTIVE',
     });
@@ -212,34 +378,70 @@ export function SubProductManagement() {
     setModalOpen(true);
     setPartCodeSearch('');
 
+    const extractImgList = (dataObj) => {
+      let rawList = [];
+      if (Array.isArray(dataObj.image_urls) && dataObj.image_urls.length > 0) {
+        rawList = dataObj.image_urls;
+      } else if (Array.isArray(dataObj.images) && dataObj.images.length > 0) {
+        rawList = dataObj.images;
+      } else if (dataObj.image_url) {
+        const str = String(dataObj.image_url).trim();
+        if (str.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(str);
+            if (Array.isArray(parsed)) rawList = parsed;
+            else rawList = [str];
+          } catch (e) {
+            rawList = [str];
+          }
+        } else {
+          rawList = [str];
+        }
+      }
+
+      return rawList
+        .map((img, idx) => ({
+          image_url: typeof img === 'object' && img !== null ? img.image_url || img.url : img,
+          display_order: idx,
+        }))
+        .filter((item) => Boolean(item.image_url));
+    };
+
     try {
       const res = await api.get(`/sub-products/${row.id}`);
       const fullData = res.success ? res.data : row;
+      const formattedImages = extractImgList(fullData);
+
       setFormData({
         product_id: fullData.product_id || '',
         name: fullData.name || '',
         model_code: fullData.model_code || '',
         slug: fullData.slug || '',
         description: fullData.description || '',
-        image_url: fullData.image_url || null,
+        image_url: formattedImages[0]?.image_url || null,
+        image_urls: formattedImages,
         sort_order: fullData.sort_order || 0,
         status: fullData.status || 'ACTIVE',
       });
 
-      const initialSelected = [
-        ...(fullData.mapped_templates || []),
-        ...(fullData.mapped_part_codes || []),
-      ];
+      const initialSelected = fullData.mapped_model_keys && fullData.mapped_model_keys.length > 0
+        ? fullData.mapped_model_keys
+        : [
+            ...(fullData.mapped_templates || []),
+            ...(fullData.mapped_part_codes || []),
+          ];
       fetchProductPartCodes(fullData.product_id, Array.from(new Set(initialSelected)));
     } catch (err) {
       console.error('Failed to load sub-product detail', err);
+      const fallbackImages = extractImgList(row);
       setFormData({
         product_id: row.product_id || '',
         name: row.name || '',
         model_code: row.model_code || '',
         slug: row.slug || '',
         description: row.description || '',
-        image_url: row.image_url || null,
+        image_url: fallbackImages[0]?.image_url || null,
+        image_urls: fallbackImages,
         sort_order: row.sort_order || 0,
         status: row.status || 'ACTIVE',
       });
@@ -248,38 +450,38 @@ export function SubProductManagement() {
   };
 
   const handleToggleModelSelection = (model) => {
-    const candidateKeys = [
-      model.baseTemplate,
-      model.key,
-      ...model.variants.map((v) => v.part_code),
-    ].filter(Boolean);
-
-    const isCurrentlySelected = selectedPartCodes.some((code) =>
-      candidateKeys.some((c) => String(c).toLowerCase() === String(code).toLowerCase())
-    );
+    const isCurrentlySelected = selectedPartCodes.some((code) => {
+      const c = String(code).toLowerCase();
+      return (
+        c === model.key.toLowerCase() ||
+        model.variants.some((v) => String(v.part_code).toLowerCase() === c || String(v.id) === c)
+      );
+    });
 
     if (isCurrentlySelected) {
-      // Remove all associated keys
       setSelectedPartCodes((prev) =>
-        prev.filter(
-          (code) => !candidateKeys.some((c) => String(c).toLowerCase() === String(code).toLowerCase())
-        )
+        prev.filter((code) => {
+          const c = String(code).toLowerCase();
+          return (
+            c !== model.key.toLowerCase() &&
+            !model.variants.some((v) => String(v.part_code).toLowerCase() === c || String(v.id) === c)
+          );
+        })
       );
     } else {
-      // Add base template to selection
-      setSelectedPartCodes((prev) => [...prev, model.baseTemplate]);
+      setSelectedPartCodes((prev) => [...prev, model.key]);
     }
   };
 
   const handleSelectAllModels = () => {
-    const allTemplates = filteredModelGroups.map((m) => m.baseTemplate);
-    setSelectedPartCodes(Array.from(new Set([...selectedPartCodes, ...allTemplates])));
+    const allKeys = filteredModelGroups.map((m) => m.key);
+    setSelectedPartCodes(Array.from(new Set([...selectedPartCodes, ...allKeys])));
   };
 
   const handleDeselectAllModels = () => {
-    const filteredTemplates = new Set(filteredModelGroups.map((m) => m.baseTemplate.toLowerCase()));
+    const filteredKeys = new Set(filteredModelGroups.map((m) => m.key.toLowerCase()));
     setSelectedPartCodes((prev) =>
-      prev.filter((code) => !filteredTemplates.has(String(code).toLowerCase()))
+      prev.filter((code) => !filteredKeys.has(String(code).toLowerCase()))
     );
   };
 
@@ -298,15 +500,17 @@ export function SubProductManagement() {
     setSubmitting(true);
     setFeedback(null);
 
+    const imgUrls = (Array.isArray(formData.image_urls) ? formData.image_urls : [])
+      .map((img) => (typeof img === 'object' && img !== null ? img.image_url || img.url : img))
+      .filter(Boolean);
+
     const payload = {
       ...formData,
       product_id: pid,
       name: String(formData.name).trim(),
       part_codes: selectedPartCodes,
-      image_url:
-        typeof formData.image_url === 'object' && formData.image_url !== null
-          ? formData.image_url.url || formData.image_url.document_url || null
-          : formData.image_url || null,
+      image_urls: imgUrls,
+      image_url: imgUrls.length > 0 ? imgUrls[0] : null,
     };
 
     try {
@@ -350,14 +554,7 @@ export function SubProductManagement() {
     {
       header: 'Image',
       key: 'image_url',
-      render: (val) =>
-        val ? (
-          <img src={val} alt="" className="w-10 h-10 object-contain rounded bg-white border border-[#87C0CD]/30" />
-        ) : (
-          <div className="w-10 h-10 rounded bg-[#F3F9FB] border border-[#87C0CD]/30 flex items-center justify-center text-slate-400">
-            <Layers className="w-4 h-4" />
-          </div>
-        ),
+      render: (val, row) => <TableMiniCarousel row={row} />,
     },
     { header: 'Sub-Product (Series Name)', key: 'name' },
     {
@@ -574,12 +771,20 @@ export function SubProductManagement() {
             />
           </div>
 
-          {/* Sub-Product Image */}
-          <div className="space-y-1">
-            <MediaUploader
-              label="Sub-Product Series Image"
-              value={formData.image_url}
-              onChange={(val) => setFormData((prev) => ({ ...prev, image_url: val }))}
+          {/* Sub-Product Images with Multi-Uploader & 5s Auto-Rotating Carousel */}
+          <div className="space-y-3">
+            <SubProductCarouselPreview images={formData.image_urls} />
+
+            <MultiMediaUploader
+              label="Sub-Product Series Images (Upload Multiple / Drag & Drop / Ctrl+V Paste)"
+              value={formData.image_urls}
+              onChange={(updatedList) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  image_urls: updatedList,
+                  image_url: updatedList.length > 0 ? updatedList[0].image_url : null,
+                }))
+              }
               folder="subproducts"
             />
           </div>
@@ -598,10 +803,10 @@ export function SubProductManagement() {
               <div className="flex items-center space-x-2">
                 <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#E4F1F5] dark:bg-[#0f1b36] text-[#226597] dark:text-[#38bdf8] border border-[#87C0CD]/40">
                   {distinctModelGroups.filter((m) => {
-                    const candidateKeys = [m.baseTemplate, m.key, ...m.variants.map((v) => v.part_code)].filter(Boolean);
-                    return selectedPartCodes.some((code) =>
-                      candidateKeys.some((c) => String(c).toLowerCase() === String(code).toLowerCase())
-                    );
+                    return selectedPartCodes.some((code) => {
+                      const c = String(code).toLowerCase();
+                      return c === m.key.toLowerCase() || m.variants.some((v) => String(v.part_code).toLowerCase() === c || String(v.id) === c);
+                    });
                   }).length}{' '}
                   Selected
                 </span>
@@ -660,15 +865,10 @@ export function SubProductManagement() {
                 </div>
               ) : (
                 filteredModelGroups.map((model) => {
-                  const candidateKeys = [
-                    model.baseTemplate,
-                    model.key,
-                    ...model.variants.map((v) => v.part_code),
-                  ].filter(Boolean);
-
-                  const isChecked = selectedPartCodes.some((code) =>
-                    candidateKeys.some((c) => String(c).toLowerCase() === String(code).toLowerCase())
-                  );
+                  const isChecked = selectedPartCodes.some((code) => {
+                    const c = String(code).toLowerCase();
+                    return c === model.key.toLowerCase() || model.variants.some((v) => String(v.part_code).toLowerCase() === c || String(v.id) === c);
+                  });
 
                   const isMappedToOther =
                     model.sub_product_id &&

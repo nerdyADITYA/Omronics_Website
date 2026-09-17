@@ -165,7 +165,36 @@ export class ProductService {
       updatePayload.datasheet_available = docsToSync.length > 0 ? 1 : 0;
     }
 
-    await productRepository.update(id, updatePayload);
+    // Whitelist valid columns of the products table to prevent relational fields (e.g. sub_products, images, documents) from breaking SQL query
+    const VALID_PRODUCT_COLUMNS = new Set([
+      'category_id',
+      'product_name',
+      'slug',
+      'model_number',
+      'price',
+      'short_description',
+      'description',
+      'features',
+      'specifications',
+      'applications',
+      'thumbnail_image',
+      'video_url',
+      'datasheet_available',
+      'featured',
+      'status',
+      'sort_order',
+      'seo_title',
+      'seo_description',
+    ]);
+
+    const finalPayload = {};
+    for (const key of Object.keys(updatePayload)) {
+      if (VALID_PRODUCT_COLUMNS.has(key)) {
+        finalPayload[key] = updatePayload[key];
+      }
+    }
+
+    await productRepository.update(id, finalPayload);
 
     if (data.images && Array.isArray(data.images)) {
       await productRepository.syncImages(id, data.images);

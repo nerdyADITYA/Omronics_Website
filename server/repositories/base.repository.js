@@ -100,6 +100,21 @@ export class BaseRepository {
   }
 
   /**
+   * Get valid table columns cached per repository instance
+   */
+  async getTableColumns() {
+    if (!this._tableColumns) {
+      try {
+        const rows = await query(`DESCRIBE ${this.tableName}`);
+        this._tableColumns = new Set(rows.map((r) => r.Field));
+      } catch (e) {
+        this._tableColumns = null;
+      }
+    }
+    return this._tableColumns;
+  }
+
+  /**
    * Create new record
    */
   async create(data) {
@@ -108,10 +123,18 @@ export class BaseRepository {
     delete payload.created_at;
     delete payload.updated_at;
 
-    const keys = Object.keys(payload);
+    const tableColumns = await this.getTableColumns();
+    const cleanPayload = {};
+    for (const [key, val] of Object.entries(payload)) {
+      if (!tableColumns || tableColumns.has(key)) {
+        cleanPayload[key] = val;
+      }
+    }
+
+    const keys = Object.keys(cleanPayload);
     const placeholders = keys.map(() => '?').join(', ');
     const sql = `INSERT INTO ${this.tableName} (${keys.join(', ')}) VALUES (${placeholders})`;
-    const res = await query(sql, Object.values(payload));
+    const res = await query(sql, Object.values(cleanPayload));
     return this.findById(res.insertId, this.isSoftDelete);
   }
 
@@ -124,11 +147,19 @@ export class BaseRepository {
     delete payload.created_at;
     delete payload.updated_at;
 
-    const keys = Object.keys(payload);
+    const tableColumns = await this.getTableColumns();
+    const cleanPayload = {};
+    for (const [key, val] of Object.entries(payload)) {
+      if (!tableColumns || tableColumns.has(key)) {
+        cleanPayload[key] = val;
+      }
+    }
+
+    const keys = Object.keys(cleanPayload);
     if (keys.length === 0) return this.findById(id, this.isSoftDelete);
     const setSql = keys.map((key) => `${key} = ?`).join(', ');
     const sql = `UPDATE ${this.tableName} SET ${setSql} WHERE id = ?`;
-    await query(sql, [...Object.values(payload), id]);
+    await query(sql, [...Object.values(cleanPayload), id]);
     return this.findById(id, this.isSoftDelete);
   }
 

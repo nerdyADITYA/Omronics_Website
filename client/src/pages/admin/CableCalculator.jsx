@@ -65,6 +65,13 @@ export function CableCalculator() {
   const [showImportGuide, setShowImportGuide] = useState(false);
   const fileInputRef = useRef(null);
   const variantImageInputRef = useRef(null);
+  const [importProgress, setImportProgress] = useState({
+    currentBatch: 0,
+    totalBatches: 0,
+    processedCount: 0,
+    totalCount: 0,
+    percent: 0,
+  });
 
   // Bulk Deletion State
   const [selectedRowIds, setSelectedRowIds] = useState([]);
@@ -724,7 +731,7 @@ export function CableCalculator() {
     }
   };
 
-  // Batch Execution Confirm Handler
+  // Batch Execution Confirm Handler with 50-Record Batching & Real-Time Progress
   const handleConfirmExecuteImport = async () => {
     if (!analysisResult) return;
 
@@ -735,12 +742,62 @@ export function CableCalculator() {
       ...analysisResult.toUpdate.map((u) => u.payload),
     ];
 
+    const BATCH_SIZE = 50;
+    const totalRecords = recordsToProcess.length;
+    const totalBatches = Math.max(1, Math.ceil(totalRecords / BATCH_SIZE));
+
+    setImportProgress({
+      currentBatch: 0,
+      totalBatches,
+      processedCount: 0,
+      totalCount: totalRecords,
+      percent: 0,
+    });
+
+    let totalInserted = 0;
+    let totalUpdated = 0;
+    let failedBatches = 0;
+
     try {
-      const res = await api.post('/cable-costs/execute-import', { records: recordsToProcess });
-      if (res.success) {
+      for (let b = 0; b < totalBatches; b++) {
+        const start = b * BATCH_SIZE;
+        const end = Math.min(start + BATCH_SIZE, totalRecords);
+        const batchRecords = recordsToProcess.slice(start, end);
+
+        setImportProgress({
+          currentBatch: b + 1,
+          totalBatches,
+          processedCount: start,
+          totalCount: totalRecords,
+          percent: Math.round((start / totalRecords) * 100),
+        });
+
+        try {
+          const res = await api.post('/cable-costs/execute-import', { records: batchRecords });
+          if (res.success && res.data) {
+            totalInserted += Number(res.data.insertedCount || 0);
+            totalUpdated += Number(res.data.updatedCount || 0);
+          } else {
+            failedBatches++;
+          }
+        } catch (batchErr) {
+          console.error(`Batch ${b + 1} failed:`, batchErr);
+          failedBatches++;
+        }
+
+        setImportProgress({
+          currentBatch: b + 1,
+          totalBatches,
+          processedCount: end,
+          totalCount: totalRecords,
+          percent: Math.round((end / totalRecords) * 100),
+        });
+      }
+
+      if (failedBatches === 0) {
         setFeedback({
           type: 'success',
-          message: `Successfully imported ${res.data.totalProcessed || recordsToProcess.length} cable variant setups (${res.data.insertedCount} inserted, ${res.data.updatedCount} modified).`,
+          message: `Successfully imported all ${totalRecords} cable variant setups (${totalInserted} inserted, ${totalUpdated} modified) across ${totalBatches} batches!`,
         });
         setShowImportModal(false);
         setAnalysisResult(null);
@@ -750,12 +807,29 @@ export function CableCalculator() {
           fetchOverviewData(1, itemsPerPage, 'ALL', 'ALL'),
         ]);
       } else {
-        setFeedback({ type: 'error', message: res.message || 'Failed to execute batch import.' });
+        setFeedback({
+          type: 'error',
+          message: `Import completed with issues: ${totalInserted} inserted, ${totalUpdated} modified, but ${failedBatches} batch(es) had errors. Check console for details.`,
+        });
+        setShowImportModal(false);
+        setAnalysisResult(null);
+        await Promise.all([
+          fetchProductVariants(selectedProductId),
+          fetchFilterOptions('ALL'),
+          fetchOverviewData(1, itemsPerPage, 'ALL', 'ALL'),
+        ]);
       }
     } catch (err) {
       setFeedback({ type: 'error', message: err.message || 'Failed to execute batch import.' });
     } finally {
       setExecutingImport(false);
+      setImportProgress({
+        currentBatch: 0,
+        totalBatches: 0,
+        processedCount: 0,
+        totalCount: 0,
+        percent: 0,
+      });
     }
   };
 
@@ -2250,15 +2324,37 @@ export function CableCalculator() {
               </div>
             )}
 
+            {/* Real-time progress bar while executing import */}
+            {executingImport && (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-1.5 shrink-0">
+                <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-200">
+                  <span className="flex items-center space-x-1.5 text-emerald-700 dark:text-emerald-400">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Importing Batch {importProgress.currentBatch} of {importProgress.totalBatches}...</span>
+                  </span>
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                    {importProgress.processedCount} / {importProgress.totalCount} records ({importProgress.percent}%)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden shadow-inner">
+                  <div
+                    className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-300 rounded-full"
+                    style={{ width: `${importProgress.percent}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Modal Footer Actions */}
             <div className="flex items-center justify-end space-x-3 border-t border-[#87C0CD]/30 dark:border-[#233554] pt-4 shrink-0">
               <button
                 type="button"
+                disabled={executingImport}
                 onClick={() => {
                   setShowImportModal(false);
                   setAnalysisResult(null);
                 }}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
               >
                 Cancel
               </button>
@@ -2275,7 +2371,7 @@ export function CableCalculator() {
                 )}
                 <span>
                   {executingImport
-                    ? 'Executing Database Upsert...'
+                    ? `Processing (${importProgress.percent}%)...`
                     : `Confirm & Execute Import (${analysisResult.toInsert.length + analysisResult.toUpdate.length} Records)`}
                 </span>
               </button>

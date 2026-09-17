@@ -15,12 +15,16 @@ const api = axios.create({
   },
 });
 
-// Attach JWT Authorization token from localStorage to every request
+// Attach JWT Authorization token and current admin page from localStorage to every request
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('omronics_jwt_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // Silently attach current page location for backend audit logging
+    if (typeof window !== 'undefined' && window.location?.pathname) {
+      config.headers['X-Admin-Page'] = window.location.pathname;
     }
     return config;
   },

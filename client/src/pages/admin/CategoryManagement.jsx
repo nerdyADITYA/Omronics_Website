@@ -33,10 +33,14 @@ export function CategoryManagement() {
 
   const handleCreateOrUpdate = async (formData) => {
     try {
+      const payload = { ...formData };
+      delete payload.product_count;
+      delete payload.sample_image;
+
       if (editingCategory) {
-        await api.put(`/categories/${editingCategory.id}`, formData);
+        await api.put(`/categories/${editingCategory.id}`, payload);
       } else {
-        await api.post('/categories', formData);
+        await api.post('/categories', payload);
       }
       setModalOpen(false);
       setEditingCategory(null);

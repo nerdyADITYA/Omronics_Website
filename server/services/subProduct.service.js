@@ -2,24 +2,64 @@ import subProductRepository from '../repositories/subProduct.repository.js';
 import { generateSlug } from '../utils/slug.js';
 import { AppError } from '../middlewares/error.middleware.js';
 
-function cleanImageUrl(val) {
-  if (!val) return null;
+function parseImageUrls(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) {
+    return val
+      .map((v) => {
+        if (typeof v === 'string') return v.trim();
+        if (typeof v === 'object' && v !== null) return v.image_url || v.url || v.document_url || '';
+        return '';
+      })
+      .filter(Boolean);
+  }
   if (typeof val === 'string') {
     const trimmed = val.trim();
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map((v) => {
+              if (typeof v === 'string') return v.trim();
+              if (typeof v === 'object' && v !== null) return v.image_url || v.url || v.document_url || '';
+              return '';
+            })
+            .filter(Boolean);
+        }
+      } catch (e) {}
+    }
     if (trimmed.startsWith('{')) {
       try {
         const parsed = JSON.parse(trimmed);
-        return parsed.url || parsed.document_url || val;
-      } catch (e) {
-        return val;
-      }
+        const url = parsed.url || parsed.document_url || parsed.image_url;
+        return url ? [String(url).trim()] : [];
+      } catch (e) {}
     }
-    return val;
+    return trimmed ? [trimmed] : [];
   }
-  if (typeof val === 'object') {
-    return val.url || val.document_url || null;
+  if (typeof val === 'object' && val !== null) {
+    const url = val.url || val.document_url || val.image_url;
+    return url ? [String(url).trim()] : [];
   }
-  return null;
+  return [];
+}
+
+function serializeImages(data) {
+  const incoming = data.images !== undefined ? data.images : (data.image_urls !== undefined ? data.image_urls : data.image_url);
+  const list = parseImageUrls(incoming);
+  if (list.length === 0) return null;
+  if (list.length === 1) return list[0];
+  return JSON.stringify(list);
+}
+
+function formatSubProductRow(r) {
+  if (!r) return null;
+  const urls = parseImageUrls(r.image_url);
+  r.image_urls = urls;
+  r.images = urls;
+  r.image_url = urls.length > 0 ? urls[0] : null;
+  return r;
 }
 
 export class SubProductService {
@@ -28,18 +68,12 @@ export class SubProductService {
       throw new AppError('Product ID is required.', 400);
     }
     const rows = await subProductRepository.findByProductId(productId, status);
-    return rows.map((r) => {
-      if (r.image_url) r.image_url = cleanImageUrl(r.image_url);
-      return r;
-    });
+    return rows.map(formatSubProductRow);
   }
 
   async getAllSubProducts(params = {}) {
     const result = await subProductRepository.findAllWithParents(params);
-    result.data = result.data.map((r) => {
-      if (r.image_url) r.image_url = cleanImageUrl(r.image_url);
-      return r;
-    });
+    result.data = result.data.map(formatSubProductRow);
     return result;
   }
 
@@ -49,8 +83,7 @@ export class SubProductService {
     if (!item) {
       throw new AppError('Sub-product not found.', 404);
     }
-    if (item.image_url) item.image_url = cleanImageUrl(item.image_url);
-    return item;
+    return formatSubProductRow(item);
   }
 
   async createSubProduct(data) {
@@ -71,7 +104,7 @@ export class SubProductService {
       slug,
       model_code: data.model_code ? data.model_code.trim() : null,
       description: data.description ? data.description.trim() : null,
-      image_url: cleanImageUrl(data.image_url),
+      image_url: serializeImages(data),
       sort_order: Number(data.sort_order) || 0,
       status: data.status || 'ACTIVE',
     };
@@ -110,7 +143,9 @@ export class SubProductService {
     }
     if (data.model_code !== undefined) payload.model_code = data.model_code ? data.model_code.trim() : null;
     if (data.description !== undefined) payload.description = data.description ? data.description.trim() : null;
-    if (data.image_url !== undefined) payload.image_url = cleanImageUrl(data.image_url);
+    if (data.image_url !== undefined || data.images !== undefined || data.image_urls !== undefined) {
+      payload.image_url = serializeImages(data);
+    }
     if (data.sort_order !== undefined) payload.sort_order = Number(data.sort_order) || 0;
     if (data.status !== undefined) payload.status = data.status;
 

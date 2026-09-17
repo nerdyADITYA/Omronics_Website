@@ -77,6 +77,39 @@ async function runAutoMigrations() {
       // product_cable_costs sub_product columns catch
     }
 
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS audit_logs (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          admin_id BIGINT NULL,
+          admin_name VARCHAR(255) NULL,
+          admin_email VARCHAR(255) NULL,
+          action VARCHAR(50) NOT NULL,
+          entity_type VARCHAR(100) NULL,
+          entity_id VARCHAR(100) NULL,
+          page VARCHAR(255) NULL,
+          method VARCHAR(10) NULL,
+          endpoint VARCHAR(255) NULL,
+          ip_address VARCHAR(100) NULL,
+          user_agent TEXT NULL,
+          status ENUM('SUCCESS', 'FAILED') NOT NULL DEFAULT 'SUCCESS',
+          details LONGTEXT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_audit_admin (admin_id),
+          INDEX idx_audit_action (action),
+          INDEX idx_audit_entity (entity_type),
+          INDEX idx_audit_created (created_at),
+          INDEX idx_audit_page (page)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
+      try {
+        await query(`ALTER TABLE audit_logs MODIFY COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+      } catch (e) {}
+    } catch (e) {
+      // audit_logs table catch
+    }
+
     logger.info('✅ Production Database Schema Verified.');
   } catch (err) {
     logger.warn('ℹ️ Schema check info:', err.message);

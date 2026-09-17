@@ -493,11 +493,16 @@ export class CableCostService {
     const existingMap = new Map();
     (Array.isArray(existingConfigs) ? existingConfigs : []).forEach((c) => {
       if (c.part_code) {
-        const fullKey = `${c.product_id}__${c.part_code}__${c.motor_type || ''}`.toLowerCase();
-        existingMap.set(fullKey, c);
-        if (!existingMap.has(c.part_code.trim().toLowerCase())) {
-          existingMap.set(c.part_code.trim().toLowerCase(), c);
-        }
+        const cleanPart = String(c.part_code).trim().toLowerCase();
+        const cleanMotor = String(c.motor_type || '').trim().replace(/\s+/g, ' ').toLowerCase();
+        const cleanFrame = String(c.frame_size || '').trim().toLowerCase();
+        const specificKey = `${c.product_id}__${c.sub_product_id || 'none'}__${cleanPart}__${cleanMotor}`;
+        const frameKey = `${c.product_id}__${cleanFrame || 'none'}__${cleanPart}__${cleanMotor}`;
+        const legacyKey = `${c.product_id}__${cleanPart}__${cleanMotor}`;
+
+        existingMap.set(specificKey, c);
+        if (cleanFrame) existingMap.set(frameKey, c);
+        if (!existingMap.has(legacyKey)) existingMap.set(legacyKey, c);
       }
     });
 
@@ -732,8 +737,18 @@ export class CableCostService {
         image_urls: parsedImages,
       };
 
-      const fullExistingKey = `${productId}__${partCode}__${motorType || ''}`.toLowerCase();
-      const existingRecord = existingMap.get(fullExistingKey) || existingMap.get(partCode.toLowerCase());
+      const cleanPart = String(partCode).trim().toLowerCase();
+      const cleanMotor = String(motorType || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      const cleanFrame = String(frameSize || '').trim().toLowerCase();
+
+      const specificKey = `${productId}__${subProductId || 'none'}__${cleanPart}__${cleanMotor}`;
+      const frameKey = `${productId}__${cleanFrame || 'none'}__${cleanPart}__${cleanMotor}`;
+      const legacyKey = `${productId}__${cleanPart}__${cleanMotor}`;
+
+      const existingRecord =
+        existingMap.get(specificKey) ||
+        (cleanFrame ? existingMap.get(frameKey) : null) ||
+        (!subProductId ? existingMap.get(legacyKey) : null);
 
       if (!existingRecord) {
         toInsert.push(parsedPayload);
@@ -753,7 +768,8 @@ export class CableCostService {
 
         const oldLanding = Math.round(Number(existingRecord.landing_cost) || 0);
         const oldSelling = Math.round(Number(existingRecord.selling_price) || 0);
-        const hasNewImages = parsedImages.length > 0;
+        const existingHasImages = Array.isArray(existingRecord.image_urls) && existingRecord.image_urls.length > 0;
+        const hasNewImages = parsedImages.length > 0 && !existingHasImages;
         const hasSubProductChange = Number(parsedPayload.sub_product_id || 0) !== Number(existingRecord.sub_product_id || 0);
 
         if (oldSelling !== sellingPrice || oldLanding !== landingCost || hasNewImages || hasSubProductChange) {
@@ -785,25 +801,37 @@ export class CableCostService {
   }
 
   /**
-   * Execute atomic batch database upsert
+   * Execute optimized batch database import
+   * Uses multi-row SQL bulk insert (50/batch) and pooled parallel bulk update
    */
   async executeBatchImport(records = []) {
     if (!Array.isArray(records) || records.length === 0) {
       throw new AppError('No valid records to import.', 400);
     }
 
-    let insertedCount = 0;
-    let updatedCount = 0;
+    const toInsert = [];
+    const toUpdate = [];
 
     for (const record of records) {
       const payload = record.payload || record;
-      const isUpdate = Boolean(payload.id);
-      await cableCostRepository.upsert(payload);
-      if (isUpdate) {
-        updatedCount++;
+      if (payload.id) {
+        toUpdate.push(payload);
       } else {
-        insertedCount++;
+        toInsert.push(payload);
       }
+    }
+
+    let insertedCount = 0;
+    let updatedCount = 0;
+
+    if (toInsert.length > 0) {
+      const insertRes = await cableCostRepository.bulkInsert(toInsert, 50);
+      insertedCount = insertRes.insertedCount;
+    }
+
+    if (toUpdate.length > 0) {
+      const updateRes = await cableCostRepository.bulkUpdate(toUpdate, 10);
+      updatedCount = updateRes.updatedCount;
     }
 
     return {

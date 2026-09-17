@@ -65,7 +65,7 @@ export class SubProductRepository extends BaseRepository {
     if (rows.length === 0) return null;
     const item = rows[0];
 
-    // Fetch mapped part codes & templates for this sub-product
+    // Fetch mapped part codes, templates, and composite model keys for this sub-product
     const partCodeRows = await query(
       'SELECT part_code, motor_type, frame_size FROM product_cable_costs WHERE sub_product_id = ?',
       [id]
@@ -73,6 +73,14 @@ export class SubProductRepository extends BaseRepository {
     item.mapped_part_codes = partCodeRows.map((r) => r.part_code).filter(Boolean);
     item.mapped_templates = Array.from(
       new Set(partCodeRows.map((r) => getBasePartCodeTemplate(r.part_code)).filter(Boolean))
+    );
+    item.mapped_model_keys = Array.from(
+      new Set(
+        partCodeRows.map((r) => {
+          const tmpl = getBasePartCodeTemplate(r.part_code).trim().toLowerCase();
+          return `${tmpl}__${(r.motor_type || '').trim()}__${(r.frame_size || '').trim()}`.toLowerCase();
+        }).filter(Boolean)
+      )
     );
 
     return item;
@@ -103,21 +111,49 @@ export class SubProductRepository extends BaseRepository {
       [productId]
     );
 
-    // 3. Match targets: partCodesList may contain exact part_codes, base templates, or model keys
+    // 3. Match targets: partCodesList may contain exact part_codes, base templates, or composite model keys
     const targetIds = [];
     const normalizedSelected = new Set(
       partCodesList.map((pc) => String(pc).trim().toLowerCase()).filter(Boolean)
     );
 
+    // Check if user provided composite model keys (keys containing '__')
+    const hasCompositeKeys = Array.from(normalizedSelected).some((k) => k.includes('__'));
+
+    // Extract subproduct series keywords (e.g. "B2 - SERIES" -> 'b2', "A2 - SERIES" -> 'a2')
+    const spClean = (subProductName || '').toLowerCase();
+    const spSeriesMatch = spClean.match(/\b(a2|b2|b3|e3|a3|m2|asda)\b/i);
+    const targetSeries = spSeriesMatch ? spSeriesMatch[1].toLowerCase() : null;
+
     for (const v of allVariants) {
       const rawPartCode = (v.part_code || '').trim().toLowerCase();
       const baseTemplate = getBasePartCodeTemplate(v.part_code).trim().toLowerCase();
-      const modelKey = `${baseTemplate}__${(v.motor_type || '').trim()}__${(v.frame_size || '').trim()}`.toLowerCase();
+      const motorClean = (v.motor_type || '').trim().toLowerCase();
+      const frameClean = (v.frame_size || '').trim().toLowerCase();
+      const modelKey = `${baseTemplate}__${motorClean}__${frameClean}`;
+      const vId = String(v.id);
+
+      // Check if variant's frame_size explicitly belongs to another series
+      let frameConflicts = false;
+      if (targetSeries && frameClean) {
+        const frameSeriesMatch = frameClean.match(/\b(a2|b2|b3|e3|a3|m2|asda)\b/i);
+        if (frameSeriesMatch && frameSeriesMatch[1].toLowerCase() !== targetSeries) {
+          frameConflicts = true;
+        }
+      }
+
+      if (frameConflicts) {
+        // Prevent generic baseTemplate from accidentally matching across conflicting series
+        if (normalizedSelected.has(modelKey) || normalizedSelected.has(vId)) {
+          targetIds.push(v.id);
+        }
+        continue;
+      }
 
       if (
-        normalizedSelected.has(rawPartCode) ||
-        normalizedSelected.has(baseTemplate) ||
-        normalizedSelected.has(modelKey)
+        normalizedSelected.has(vId) ||
+        normalizedSelected.has(modelKey) ||
+        (!hasCompositeKeys && (normalizedSelected.has(rawPartCode) || normalizedSelected.has(baseTemplate)))
       ) {
         targetIds.push(v.id);
       }

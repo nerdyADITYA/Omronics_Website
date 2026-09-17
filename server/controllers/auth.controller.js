@@ -1,12 +1,14 @@
 import authService from '../services/auth.service.js';
 import { sendSuccess } from '../utils/response.js';
+import { getClientIp } from '../utils/ip.js';
 
 export class AuthController {
   async login(req, res, next) {
     try {
       const { email, password } = req.body;
-      const ipAddress = req.ip || req.socket.remoteAddress;
-      const data = await authService.login(email, password, ipAddress);
+      const ipAddress = getClientIp(req);
+      const userAgent = req.headers['user-agent'] || null;
+      const data = await authService.login(email, password, ipAddress, userAgent);
       return sendSuccess(res, data, 'Login successful.');
     } catch (err) {
       next(err);

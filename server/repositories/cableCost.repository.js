@@ -496,6 +496,281 @@ export class CableCostRepository {
     }
   }
 
+  /**
+   * High-performance multi-row bulk insert for Excel imports
+   * Batches records into single multi-row SQL queries (50 rows per query)
+   */
+  async bulkInsert(records = [], chunkSize = 50) {
+    if (!Array.isArray(records) || records.length === 0) return { insertedCount: 0 };
+
+    let totalInserted = 0;
+
+    // Collect product IDs to pre-fetch existing image siblings once
+    const productIds = [...new Set(records.map((r) => r.product_id).filter(Boolean))];
+    const siblingImageMap = new Map();
+
+    if (productIds.length > 0) {
+      try {
+        const placeholders = productIds.map(() => '?').join(',');
+        const existingImages = await query(
+          `SELECT product_id, part_code, motor_type, image_url 
+           FROM product_cable_costs 
+           WHERE product_id IN (${placeholders}) AND image_url IS NOT NULL`,
+          productIds
+        );
+        existingImages.forEach((imgRow) => {
+          const key = `${imgRow.product_id}__${getModelGroupKey(imgRow.part_code, imgRow.motor_type)}`;
+          if (!siblingImageMap.has(key)) {
+            siblingImageMap.set(key, imgRow.image_url);
+          }
+        });
+      } catch (err) {
+        console.warn('Could not pre-fetch sibling images for bulk insert:', err.message);
+      }
+    }
+
+    // Process records in chunks of 50
+    for (let i = 0; i < records.length; i += chunkSize) {
+      const chunk = records.slice(i, i + chunkSize);
+
+      const valuePlaceholders = [];
+      const queryParams = [];
+
+      for (const data of chunk) {
+        const additionalJson = Array.isArray(data.additional_components)
+          ? JSON.stringify(data.additional_components)
+          : typeof data.additional_components === 'string'
+          ? data.additional_components
+          : null;
+
+        const sellingPrice = data.selling_price !== undefined && data.selling_price !== null ? Number(data.selling_price) : 0;
+        const landingCost = data.landing_cost !== undefined && data.landing_cost !== null ? Number(data.landing_cost) : 0;
+        const subProductId = data.sub_product_id ? Number(data.sub_product_id) : null;
+        const subProductName = data.sub_product_name ? String(data.sub_product_name).trim() : null;
+
+        let imageUrlsArr = [];
+        if (Array.isArray(data.image_urls)) {
+          imageUrlsArr = data.image_urls.filter((u) => typeof u === 'string' && u.trim().length > 0);
+        } else if (data.image_url) {
+          const trimmed = String(data.image_url).trim();
+          if (trimmed.startsWith('[')) {
+            try {
+              imageUrlsArr = JSON.parse(trimmed);
+            } catch (e) {
+              imageUrlsArr = [trimmed];
+            }
+          } else if (trimmed.length > 0) {
+            imageUrlsArr = [trimmed];
+          }
+        }
+
+        let effectiveImageUrl = imageUrlsArr.length > 0 ? JSON.stringify(imageUrlsArr) : null;
+        if (!effectiveImageUrl && data.product_id && data.part_code) {
+          const key = `${data.product_id}__${getModelGroupKey(data.part_code, data.motor_type)}`;
+          if (siblingImageMap.has(key)) {
+            effectiveImageUrl = siblingImageMap.get(key);
+          }
+        }
+
+        valuePlaceholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        queryParams.push(
+          data.product_id,
+          subProductId,
+          subProductName,
+          data.frame_size ? String(data.frame_size).trim() : null,
+          data.motor_type ? String(data.motor_type).trim() : null,
+          data.part_code ? String(data.part_code).trim() : null,
+          data.default_length !== undefined && data.default_length !== null ? Number(data.default_length) : 5,
+          data.cable_dimension ? String(data.cable_dimension).trim() : null,
+          data.cable_cost_per_meter !== undefined && data.cable_cost_per_meter !== null ? Number(data.cable_cost_per_meter) : 0,
+          data.connector1_name ? String(data.connector1_name).trim() : null,
+          data.connector1_cost !== undefined && data.connector1_cost !== null ? Number(data.connector1_cost) : 0,
+          data.connector2_name ? String(data.connector2_name).trim() : null,
+          data.connector2_cost !== undefined && data.connector2_cost !== null ? Number(data.connector2_cost) : 0,
+          data.labour_cost !== undefined && data.labour_cost !== null ? Number(data.labour_cost) : 0,
+          data.battery_name ? String(data.battery_name).trim() : null,
+          data.battery_cost !== undefined && data.battery_cost !== null ? Number(data.battery_cost) : 0,
+          data.margin_percentage !== undefined && data.margin_percentage !== null ? Number(data.margin_percentage) : 35,
+          additionalJson,
+          sellingPrice,
+          landingCost,
+          effectiveImageUrl
+        );
+      }
+
+      const sql = `
+        INSERT INTO product_cable_costs (
+          product_id, sub_product_id, sub_product_name, frame_size, motor_type, part_code, default_length,
+          cable_dimension, cable_cost_per_meter, connector1_name, connector1_cost,
+          connector2_name, connector2_cost, labour_cost, battery_name, battery_cost,
+          margin_percentage, additional_components, selling_price, landing_cost, image_url
+        ) VALUES ${valuePlaceholders.join(',\n')}
+      `;
+
+      const res = await query(sql, queryParams);
+      totalInserted += Number(res.affectedRows || chunk.length);
+    }
+
+    // Trigger fast post-sync for sibling images / sub-products
+    await this.syncBatchImagesAndSubproducts(productIds);
+
+    return { insertedCount: totalInserted };
+  }
+
+  /**
+   * Concurrent batch update with pool concurrency control
+   */
+  async bulkUpdate(records = [], poolConcurrency = 10) {
+    if (!Array.isArray(records) || records.length === 0) return { updatedCount: 0 };
+
+    let totalUpdated = 0;
+    const productIds = [...new Set(records.map((r) => r.product_id).filter(Boolean))];
+
+    for (let i = 0; i < records.length; i += poolConcurrency) {
+      const slice = records.slice(i, i + poolConcurrency);
+      await Promise.all(
+        slice.map(async (data) => {
+          const additionalJson = Array.isArray(data.additional_components)
+            ? JSON.stringify(data.additional_components)
+            : typeof data.additional_components === 'string'
+            ? data.additional_components
+            : null;
+
+          const sellingPrice = data.selling_price !== undefined && data.selling_price !== null ? Number(data.selling_price) : 0;
+          const landingCost = data.landing_cost !== undefined && data.landing_cost !== null ? Number(data.landing_cost) : 0;
+          const subProductId = data.sub_product_id ? Number(data.sub_product_id) : null;
+          const subProductName = data.sub_product_name ? String(data.sub_product_name).trim() : null;
+
+          let imageUrlsArr = [];
+          if (Array.isArray(data.image_urls)) {
+            imageUrlsArr = data.image_urls.filter((u) => typeof u === 'string' && u.trim().length > 0);
+          } else if (data.image_url) {
+            const trimmed = String(data.image_url).trim();
+            if (trimmed.startsWith('[')) {
+              try {
+                imageUrlsArr = JSON.parse(trimmed);
+              } catch (e) {
+                imageUrlsArr = [trimmed];
+              }
+            } else if (trimmed.length > 0) {
+              imageUrlsArr = [trimmed];
+            }
+          }
+
+          const imageUrl = imageUrlsArr.length > 0 ? JSON.stringify(imageUrlsArr) : null;
+
+          const updateSql = `
+            UPDATE product_cable_costs SET
+              sub_product_id = ?,
+              sub_product_name = ?,
+              frame_size = ?,
+              motor_type = ?,
+              part_code = ?,
+              default_length = ?,
+              cable_dimension = ?,
+              cable_cost_per_meter = ?,
+              connector1_name = ?,
+              connector1_cost = ?,
+              connector2_name = ?,
+              connector2_cost = ?,
+              labour_cost = ?,
+              battery_name = ?,
+              battery_cost = ?,
+              margin_percentage = ?,
+              additional_components = ?,
+              selling_price = ?,
+              landing_cost = ?,
+              image_url = ?
+            WHERE id = ? AND product_id = ?
+          `;
+
+          const updateParams = [
+            subProductId,
+            subProductName,
+            data.frame_size ? String(data.frame_size).trim() : null,
+            data.motor_type ? String(data.motor_type).trim() : null,
+            data.part_code ? String(data.part_code).trim() : null,
+            data.default_length !== undefined && data.default_length !== null ? Number(data.default_length) : 5,
+            data.cable_dimension ? String(data.cable_dimension).trim() : null,
+            data.cable_cost_per_meter !== undefined && data.cable_cost_per_meter !== null ? Number(data.cable_cost_per_meter) : 0,
+            data.connector1_name ? String(data.connector1_name).trim() : null,
+            data.connector1_cost !== undefined && data.connector1_cost !== null ? Number(data.connector1_cost) : 0,
+            data.connector2_name ? String(data.connector2_name).trim() : null,
+            data.connector2_cost !== undefined && data.connector2_cost !== null ? Number(data.connector2_cost) : 0,
+            data.labour_cost !== undefined && data.labour_cost !== null ? Number(data.labour_cost) : 0,
+            data.battery_name ? String(data.battery_name).trim() : null,
+            data.battery_cost !== undefined && data.battery_cost !== null ? Number(data.battery_cost) : 0,
+            data.margin_percentage !== undefined && data.margin_percentage !== null ? Number(data.margin_percentage) : 35,
+            additionalJson,
+            sellingPrice,
+            landingCost,
+            imageUrl,
+            data.id,
+            data.product_id,
+          ];
+
+          const res = await query(updateSql, updateParams);
+          totalUpdated += Number(res.affectedRows || 1);
+        })
+      );
+    }
+
+    // Trigger fast post-sync for sibling images / sub-products
+    await this.syncBatchImagesAndSubproducts(productIds);
+
+    return { updatedCount: totalUpdated };
+  }
+
+  /**
+   * Fast batch consolidation of sibling images and subproducts across product IDs
+   */
+  async syncBatchImagesAndSubproducts(productIds = []) {
+    if (!Array.isArray(productIds) || productIds.length === 0) return;
+    try {
+      for (const prodId of productIds) {
+        const rows = await query(
+          `SELECT part_code, motor_type, image_url, sub_product_id, sub_product_name 
+           FROM product_cable_costs 
+           WHERE product_id = ? AND (image_url IS NOT NULL OR sub_product_id IS NOT NULL)`,
+          [prodId]
+        );
+        const map = new Map();
+        rows.forEach((r) => {
+          const key = getModelGroupKey(r.part_code, r.motor_type);
+          if (!map.has(key)) {
+            map.set(key, {
+              image_url: r.image_url,
+              sub_product_id: r.sub_product_id,
+              sub_product_name: r.sub_product_name,
+            });
+          }
+        });
+
+        for (const [key, val] of map.entries()) {
+          const basePart = key.split('__')[0];
+          if (val.image_url) {
+            await query(
+              `UPDATE product_cable_costs 
+               SET image_url = ? 
+               WHERE product_id = ? AND image_url IS NULL AND LOWER(part_code) LIKE ?`,
+              [val.image_url, prodId, `${basePart}%`]
+            );
+          }
+          if (val.sub_product_id) {
+            await query(
+              `UPDATE product_cable_costs 
+               SET sub_product_id = ?, sub_product_name = ? 
+               WHERE product_id = ? AND sub_product_id IS NULL AND LOWER(part_code) LIKE ?`,
+              [val.sub_product_id, val.sub_product_name, prodId, `${basePart}%`]
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Post-import batch sync warning:', e.message);
+    }
+  }
+
   async delete(id) {
     const sql = `DELETE FROM product_cable_costs WHERE id = ?`;
     await query(sql, [id]);

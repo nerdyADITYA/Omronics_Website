@@ -55,6 +55,13 @@ export class CategoryService {
     await this.getById(id);
 
     const updatePayload = { ...data };
+    delete updatePayload.id;
+    delete updatePayload.product_count;
+    delete updatePayload.sample_image;
+    delete updatePayload.created_at;
+    delete updatePayload.updated_at;
+    delete updatePayload.deleted_at;
+
     if (data.slug || data.name) {
       const newSlug = generateSlug(data.slug || data.name);
       const existing = await categoryRepository.findBySlug(newSlug);

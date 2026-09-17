@@ -232,4 +232,29 @@ CREATE TABLE `website_settings` (
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 12. Audit Logs Table
+DROP TABLE IF EXISTS `audit_logs`;
+CREATE TABLE `audit_logs` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `admin_id` BIGINT NULL,
+  `admin_name` VARCHAR(255) NULL,
+  `admin_email` VARCHAR(255) NULL,
+  `action` VARCHAR(50) NOT NULL,
+  `entity_type` VARCHAR(100) NULL,
+  `entity_id` VARCHAR(100) NULL,
+  `page` VARCHAR(255) NULL,
+  `method` VARCHAR(10) NULL,
+  `endpoint` VARCHAR(255) NULL,
+  `ip_address` VARCHAR(100) NULL,
+  `user_agent` TEXT NULL,
+  `status` ENUM('SUCCESS', 'FAILED') NOT NULL DEFAULT 'SUCCESS',
+  `details` LONGTEXT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_audit_admin` (`admin_id`),
+  INDEX `idx_audit_action` (`action`),
+  INDEX `idx_audit_entity` (`entity_type`),
+  INDEX `idx_audit_created` (`created_at`),
+  INDEX `idx_audit_page` (`page`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;

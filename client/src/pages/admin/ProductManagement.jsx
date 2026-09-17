@@ -80,6 +80,8 @@ export function ProductManagement() {
       delete payload.category_name;
       delete payload.category_slug;
       delete payload.category_status;
+      delete payload.sub_products;
+      delete payload.part_code_variants;
 
       if (editingProduct) {
         await api.put(`/products/${editingProduct.id}`, payload);
